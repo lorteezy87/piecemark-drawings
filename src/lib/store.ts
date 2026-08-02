@@ -180,6 +180,8 @@ interface AppState {
     discipline?: Discipline;
     sequenceId?: string;
   }) => string;
+  deleteDrawing: (drawingId: string) => boolean;
+  deleteDrawingSet: (setId: string) => boolean;
   createDrawing: (input: {
     projectId: string;
     setId: string;
@@ -883,6 +885,91 @@ export const useAppStore = create<AppState>()(
           ),
         }));
         return id;
+      },
+
+      deleteDrawing: (drawingId) => {
+        if (!can(get().crewRole, "drawing.edit") && !can(get().crewRole, "job.delete")) {
+          toast.error("Not allowed: delete sheet");
+          return false;
+        }
+        const d = get().drawings.find((x) => x.id === drawingId);
+        if (!d) return false;
+        void get().clearSheetAsset(drawingId);
+        set((s) => ({
+          drawings: s.drawings.filter((x) => x.id !== drawingId),
+          revisions: s.revisions.filter((r) => r.drawingId !== drawingId),
+          markups: s.markups.filter((m) => m.drawingId !== drawingId),
+          rfis: s.rfis.map((r) =>
+            r.drawingIds?.includes(drawingId)
+              ? {
+                  ...r,
+                  drawingIds: r.drawingIds.filter((id) => id !== drawingId),
+                }
+              : r,
+          ),
+          transmittals: s.transmittals.map((tr) => ({
+            ...tr,
+            items: tr.items.filter((it) => it.drawingId !== drawingId),
+          })),
+          activities: pushActivity(
+            s,
+            makeActivity({
+              projectId: d.projectId,
+              kind: "system",
+              actor: actorName(get()),
+              summary: `Deleted sheet ${d.number}`,
+            }),
+          ),
+        }));
+        return true;
+      },
+
+      deleteDrawingSet: (setId) => {
+        if (!can(get().crewRole, "drawing.edit") && !can(get().crewRole, "job.delete")) {
+          toast.error("Not allowed: delete drawing set");
+          return false;
+        }
+        const ds = get().drawingSets.find((x) => x.id === setId);
+        if (!ds) return false;
+        const sheetIds = get()
+          .drawings.filter((d) => d.setId === setId)
+          .map((d) => d.id);
+        for (const id of sheetIds) {
+          void get().clearSheetAsset(id);
+        }
+        const sheetSet = new Set(sheetIds);
+        set((s) => ({
+          drawingSets: s.drawingSets.filter((x) => x.id !== setId),
+          drawings: s.drawings.filter((d) => d.setId !== setId),
+          revisions: s.revisions.filter((r) => !sheetSet.has(r.drawingId)),
+          markups: s.markups.filter((m) => !sheetSet.has(m.drawingId)),
+          rfis: s.rfis.map((r) =>
+            r.drawingIds?.some((id) => sheetSet.has(id))
+              ? {
+                  ...r,
+                  drawingIds: r.drawingIds.filter((id) => !sheetSet.has(id)),
+                }
+              : r,
+          ),
+          submittals: s.submittals.map((sub) => ({
+            ...sub,
+            setIds: sub.setIds?.filter((id) => id !== setId),
+          })),
+          transmittals: s.transmittals.map((tr) => ({
+            ...tr,
+            items: tr.items.filter((it) => !sheetSet.has(it.drawingId)),
+          })),
+          activities: pushActivity(
+            s,
+            makeActivity({
+              projectId: ds.projectId,
+              kind: "system",
+              actor: actorName(get()),
+              summary: `Deleted set ${ds.code} (${sheetIds.length} sheet(s))`,
+            }),
+          ),
+        }));
+        return true;
       },
 
       exportPackage: () => {

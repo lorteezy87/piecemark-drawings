@@ -4,9 +4,14 @@ import {
   ChevronDown,
   ChevronRight,
   Layers,
+  Trash2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { DrawingStatusBadge } from "@/components/status-badges";
+import { Button } from "@/components/ui/button";
+import { can } from "@/lib/permissions";
+import { useAppStore } from "@/lib/store";
 import {
   DRAWING_TYPE_LABELS,
   type Drawing,
@@ -35,6 +40,11 @@ export function SetRegister({
     if (!defaultExpanded) return {};
     return Object.fromEntries(sets.map((s) => [s.id, true]));
   });
+  const crewRole = useAppStore((s) => s.crewRole);
+  const deleteDrawingSet = useAppStore((s) => s.deleteDrawingSet);
+  const deleteDrawing = useAppStore((s) => s.deleteDrawing);
+  const canDelete =
+    can(crewRole, "drawing.edit") || can(crewRole, "job.delete");
 
   if (sets.length === 0) {
     return (
@@ -122,7 +132,7 @@ export function SetRegister({
                 </div>
               </div>
 
-              <div className="flex shrink-0 items-center gap-2 pl-10 sm:pl-0">
+              <div className="flex shrink-0 flex-wrap items-center gap-2 pl-10 sm:pl-0">
                 <Link
                   to="/drawings/sets/$setId"
                   params={{ setId: set.id }}
@@ -131,6 +141,26 @@ export function SetRegister({
                   <Layers className="size-3.5" />
                   Open set
                 </Link>
+                {canDelete && (
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    className="h-9"
+                    onClick={() => {
+                      if (
+                        confirm(
+                          `Delete set ${set.code} and all ${sheets.length} sheet(s) under it? This cannot be undone.`,
+                        )
+                      ) {
+                        const ok = deleteDrawingSet(set.id);
+                        if (ok) toast.success(`Deleted set ${set.code}`);
+                      }
+                    }}
+                  >
+                    <Trash2 className="size-3.5" />
+                    Delete set
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -202,14 +232,36 @@ export function SetRegister({
                           {formatDate(d.issuedDate)}
                         </td>
                         <td className="px-2 py-2.5">
-                          <Link
-                            to="/drawings/$drawingId"
-                            params={{ drawingId: d.id }}
-                            className="inline-flex size-8 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-fg)]"
-                            aria-label={`Open sheet ${d.number}`}
-                          >
-                            <ChevronRight className="size-4" />
-                          </Link>
+                          <div className="flex items-center justify-end gap-0.5">
+                            {canDelete && (
+                              <button
+                                type="button"
+                                className="inline-flex size-8 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-muted)] hover:bg-[var(--color-danger-bg)] hover:text-[var(--color-danger)]"
+                                aria-label={`Delete sheet ${d.number}`}
+                                onClick={() => {
+                                  if (
+                                    confirm(
+                                      `Delete sheet ${d.number}? Uploaded file and markups on this sheet are removed.`,
+                                    )
+                                  ) {
+                                    const ok = deleteDrawing(d.id);
+                                    if (ok)
+                                      toast.success(`Deleted ${d.number}`);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="size-3.5" />
+                              </button>
+                            )}
+                            <Link
+                              to="/drawings/$drawingId"
+                              params={{ drawingId: d.id }}
+                              className="inline-flex size-8 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-fg)]"
+                              aria-label={`Open sheet ${d.number}`}
+                            >
+                              <ChevronRight className="size-4" />
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     ))}
