@@ -7,7 +7,6 @@ import {
   Link2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { DrawingSheetViewer } from "@/components/viewer/drawing-sheet-viewer";
 import {
   RealSheetViewer,
   SHEET_UPLOAD_ACCEPT,
@@ -52,7 +51,6 @@ function ViewerPage() {
   const clearSheetAsset = useAppStore((s) => s.clearSheetAsset);
   const upsertDrawingMarks = useAppStore((s) => s.upsertDrawingMarks);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [preferGenerated, setPreferGenerated] = useState(false);
 
   const projectDrawings = useMemo(
     () =>
@@ -92,7 +90,7 @@ function ViewerPage() {
   );
 
   const sheetAsset = drawing ? sheetAssets[drawing.id] : undefined;
-  const showRealSheet = !!sheetAsset && !preferGenerated;
+  const showRealSheet = !!sheetAsset;
 
   async function onUploadSheet(file: File | null) {
     if (!file || !project) return;
@@ -102,8 +100,7 @@ function ViewerPage() {
       try {
         const asset = await fileToSheetAsset(drawing.id, file);
         setSheetAsset(drawing.id, asset);
-        setPreferGenerated(false);
-        setMode("sheet");
+                setMode("sheet");
         setSplit(false);
         const remote = await uploadSheetToServer({
           drawingId: drawing.id,
@@ -132,8 +129,7 @@ function ViewerPage() {
           ? "Created sheet row and attached file"
           : "Matched file to a sheet",
       );
-      setPreferGenerated(false);
-      setMode("sheet");
+            setMode("sheet");
     } else if (result.failed.length) {
       setUploadError(result.failed[0] ?? "Upload failed");
     }
@@ -153,8 +149,9 @@ function ViewerPage() {
           ? ` (${result.created} new sheet row(s) created)`
           : "";
       toast.success(`Attached ${result.attached} file(s)${extra}`);
-      setPreferGenerated(false);
       setMode("sheet");
+      const lastId = result.drawingIds?.[result.drawingIds.length - 1];
+      if (lastId) setDrawingId(lastId);
     }
     if (result.failed.length) {
       toast.message(
@@ -358,22 +355,6 @@ function ViewerPage() {
                     <div className="flex flex-wrap gap-1">
                       <Button
                         size="sm"
-                        variant={showRealSheet ? "secondary" : "ghost"}
-                        className="h-7 px-2 text-[11px]"
-                        onClick={() => setPreferGenerated(false)}
-                      >
-                        Show upload
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={!showRealSheet ? "secondary" : "ghost"}
-                        className="h-7 px-2 text-[11px]"
-                        onClick={() => setPreferGenerated(true)}
-                      >
-                        Generated sheet
-                      </Button>
-                      <Button
-                        size="sm"
                         variant="ghost"
                         className="h-7 px-2 text-[11px]"
                         onClick={() => clearSheetAsset(drawing.id)}
@@ -419,12 +400,11 @@ function ViewerPage() {
           </div>
 
           <div className="panel p-4 text-xs leading-relaxed text-[var(--color-muted)]">
-            <strong className="text-[var(--color-fg)]">Real drawings + IFC</strong>
+            <strong className="text-[var(--color-fg)]">Real drawings + IFC only</strong>
             <p className="mt-1.5">
-              Upload a shop/erection PDF or PNG/JPG to view your actual sheet.
-              Switch back to the generated schematic anytime. IFC: load a job
-              model or Blender (Bonsai) export via the 3D viewer. Uploads stay
-              in this session only (not written to the server).
+              Upload shop/erection PDFs (multi-select creates one sheet per file).
+              IFC: upload your job model (.ifc / .ifczip). No sample sheets or
+              demo models are loaded.
             </p>
           </div>
         </aside>
@@ -446,15 +426,40 @@ function ViewerPage() {
                 className={split ? "min-h-[340px]" : "min-h-[560px] flex-1"}
               />
             ) : (
-              <DrawingSheetViewer
-                drawing={drawing}
-                markups={dwgMarkups}
-                pieceStatus={pieceStatus}
-                selectedMark={selectedMark}
-                onSelectMark={selectMark}
-                jobNumber={project.jobNumber}
-                className={split ? "min-h-[340px]" : "min-h-[560px] flex-1"}
-              />
+              <div
+                className={
+                  split
+                    ? "panel flex min-h-[340px] flex-col items-center justify-center gap-3 p-8 text-center"
+                    : "panel flex min-h-[560px] flex-1 flex-col items-center justify-center gap-3 p-8 text-center"
+                }
+              >
+                <FileUp className="size-8 text-[var(--color-subtle)]" />
+                <div>
+                  <div className="text-sm font-semibold">
+                    No drawing file on {drawing.number}
+                  </div>
+                  <p className="mt-1 max-w-sm text-sm text-[var(--color-muted)]">
+                    Upload a PDF or image for this sheet. Generated placeholders
+                    have been removed — only real uploads are shown.
+                  </p>
+                </div>
+                <label className="inline-flex cursor-pointer">
+                  <span className="inline-flex h-10 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-medium text-[var(--color-primary-fg)]">
+                    <FileUp className="size-4" />
+                    Upload this sheet
+                  </span>
+                  <input
+                    type="file"
+                    accept={SHEET_UPLOAD_ACCEPT}
+                    className="sr-only"
+                    aria-label={`Upload file for ${drawing.number}`}
+                    onChange={(e) => {
+                      void onUploadSheet(e.target.files?.[0] ?? null);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
             )
           )}
           {(mode === "ifc" || split) && (

@@ -490,12 +490,10 @@ export function applyIfcSelection(
   }
 }
 
-export const IFC_CATALOG = [
-  {
-    id: "pmc-steel",
-    label: "PMC Tower — structural steel (job IFC)",
-    url: "/models/pmc-steel.ifc",
-    description:
-      "Real IFC4 export: columns, beams, braces, footings with piece-mark tags",
-  },
-] as const;
+/** Sample models removed — pilot uses real uploaded IFC only. */
+export const IFC_CATALOG: readonly {
+  id: string;
+  label: string;
+  url: string;
+  description: string;
+}[] = [];

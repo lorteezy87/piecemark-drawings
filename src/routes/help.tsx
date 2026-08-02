@@ -66,7 +66,7 @@ const steps = [
       "Open Sheet / IFC Viewer → Sheet mode.",
       "Pick the sheet in the dropdown.",
       "Upload PDF (or image) for that sheet — filename does not matter when a sheet is already selected.",
-      "Pan / zoom the real drawing. Use Show upload vs Generated sheet if both exist.",
+      "Pan / zoom the real drawing. No generated placeholders — upload is required to view a sheet.",
     ],
   },
   {
@@ -76,7 +76,7 @@ const steps = [
     to: "/viewer",
     body: [
       "In the Viewer, switch to IFC mode.",
-      "Upload an .ifc or .ifczip file (export IFC from Tekla, SDS/2, Revit, or Blender with an IFC add-on — not .blend).",
+      "Upload an .ifc or .ifczip (no sample models — empty until you upload). Export from Tekla, SDS/2, Revit, or Blender Bonsai — not .blend.",
       "Orbit: left-drag. Pan: right-drag or middle. Zoom: scroll (no “run out of gas” — zoom always works).",
       "Click a member to see properties. Fullscreen uses the button in the viewer chrome.",
       "Piece status colors follow the drawing register (hold = warning, etc.).",

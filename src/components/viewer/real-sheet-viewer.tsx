@@ -144,7 +144,7 @@ export function RealSheetViewer({ asset, title, onClear, className }: Props) {
               variant="ghost"
               onClick={onClear}
               aria-label="Remove upload"
-              title="Remove uploaded file (back to generated sheet)"
+              title="Remove uploaded file"
             >
               <Trash2 className="size-4" />
             </Button>

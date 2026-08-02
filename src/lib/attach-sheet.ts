@@ -13,25 +13,26 @@ export type AttachResult = {
   /** How many of those were new register rows. */
   created: number;
   failed: string[];
+  /** Drawing ids that received a file (in order). */
+  drawingIds: string[];
 };
 
 /**
- * Attach one or more PDF/image files to the active job register.
- * Flexible filename matching; creates a sheet row when no match (optional).
+ * Attach one or more PDF/image files — each file gets its own sheet when
+ * there is no exact sheet-number match, so multi-select never collapses to one.
  */
 export async function attachSheetsFromFiles(opts: {
   files: File[];
   projectId: string;
-  /** When false, skip creating rows for unmatched (default true). */
   createIfMissing?: boolean;
 }): Promise<AttachResult> {
   const createIfMissing = opts.createIfMissing !== false;
   let attached = 0;
   let created = 0;
   const failed: string[] = [];
-
-  const store = useAppStore.getState();
-  let pool = store.drawings.filter((d) => d.projectId === opts.projectId);
+  const drawingIds: string[] = [];
+  /** Drawings already claimed by a file in this batch — never overwrite. */
+  const claimed = new Set<string>();
 
   const ensureUploadSet = (): string => {
     const sets = useAppStore
@@ -51,29 +52,52 @@ export async function attachSheetsFromFiles(opts: {
     });
   };
 
+  const createSheetForFile = (file: File) => {
+    const pool = useAppStore
+      .getState()
+      .drawings.filter((d) => d.projectId === opts.projectId);
+    const used = new Set(pool.map((d) => normalizeSheetNo(d.number)));
+    // Disambiguate with index when basename collides
+    let number = suggestNumberFromFile(file.name, used);
+    if (used.has(normalizeSheetNo(number))) {
+      number = `${number}-${Date.now().toString(36).slice(-4)}`;
+    }
+    const title = file.name
+      .replace(/\.[^.]+$/, "")
+      .replace(/[_]+/g, " ")
+      .trim();
+    const setId = ensureUploadSet();
+    const id = useAppStore.getState().createDrawing({
+      projectId: opts.projectId,
+      setId,
+      number,
+      title: title || number,
+      type: "mixed",
+    });
+    return id;
+  };
+
   for (const file of opts.files) {
     try {
-      // Refresh pool each file so newly created sheets can match later files
-      pool = useAppStore
+      const pool = useAppStore
         .getState()
         .drawings.filter((d) => d.projectId === opts.projectId);
 
-      let hit = matchDrawingByFileName(pool, file.name);
+      // Strict match only — exact sheet token in filename, not already claimed
+      let hit = matchDrawingByFileName(pool, file.name, {
+        strict: true,
+      });
+      if (hit && claimed.has(hit.id)) {
+        hit = null;
+      }
+      // If that sheet already has an uploaded file, don't overwrite — new row
+      if (hit) {
+        const existing = useAppStore.getState().sheetAssets[hit.id];
+        if (existing?.url) hit = null;
+      }
+
       if (!hit && createIfMissing) {
-        const used = new Set(pool.map((d) => normalizeSheetNo(d.number)));
-        const number = suggestNumberFromFile(file.name, used);
-        const title = file.name
-          .replace(/\.[^.]+$/, "")
-          .replace(/[_]+/g, " ")
-          .trim();
-        const setId = ensureUploadSet();
-        const id = useAppStore.getState().createDrawing({
-          projectId: opts.projectId,
-          setId,
-          number,
-          title: title || number,
-          type: "mixed",
-        });
+        const id = createSheetForFile(file);
         if (!id) {
           failed.push(`${file.name} (could not create sheet)`);
           continue;
@@ -86,18 +110,29 @@ export async function attachSheetsFromFiles(opts: {
         }
         created += 1;
       }
+
       if (!hit) {
         failed.push(file.name);
         continue;
       }
+
       const asset = await fileToSheetAsset(hit.id, file);
       useAppStore.getState().setSheetAsset(hit.id, asset);
-      await uploadSheetToServer({
-        drawingId: hit.id,
-        name: file.name,
-        mime: asset.mime,
-        blob: file,
-      });
+      claimed.add(hit.id);
+      drawingIds.push(hit.id);
+
+      // Cloud is best-effort — never block local multi-file attach
+      try {
+        await uploadSheetToServer({
+          drawingId: hit.id,
+          name: file.name,
+          mime: asset.mime,
+          blob: file,
+        });
+      } catch {
+        /* local IDB still has the file */
+      }
+
       attached += 1;
     } catch (e) {
       failed.push(
@@ -106,5 +141,5 @@ export async function attachSheetsFromFiles(opts: {
     }
   }
 
-  return { attached, created, failed };
+  return { attached, created, failed, drawingIds };
 }

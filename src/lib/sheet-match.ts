@@ -29,7 +29,6 @@ export function guessSheetCandidates(fileName: string): string[] {
     if (n && !found.includes(n)) found.push(n);
   };
 
-  // Prefixed letter + separator + digits (S-101, E_201, CD 18, AB.01)
   const reLoose =
     /(?:^|[^A-Z0-9])([A-Z]{1,3})[\s._\-–—]*(\d{1,4})([A-Z]?)/gi;
   let m: RegExpExecArray | null;
@@ -37,40 +36,43 @@ export function guessSheetCandidates(fileName: string): string[] {
     push(`${m[1]}-${m[2]}${m[3] || ""}`);
   }
 
-  // Compact letter+digits: E101, S301, CD18
-  const reCompact = /(?:^|[^A-Z0-9])([A-Z]{1,3})(\d{2,4})([A-Z]?)(?=$|[^A-Z0-9])/gi;
+  const reCompact =
+    /(?:^|[^A-Z0-9])([A-Z]{1,3})(\d{2,4})([A-Z]?)(?=$|[^A-Z0-9])/gi;
   while ((m = reCompact.exec(upper)) !== null) {
     push(`${m[1]}-${m[2]}${m[3] || ""}`);
   }
 
-  // Whole basename is a sheet token
   if (/^[A-Z]{1,3}[\s._\-–—]?\d{1,4}[A-Z]?$/i.test(base)) {
     push(base);
   }
 
-  // Prefer longer / more specific (CD-18 before D-18 noise) — sort by length desc
   found.sort((a, b) => b.length - a.length);
   return found;
 }
 
-/** Best single guess (first candidate). */
 export function guessSheetNumber(fileName: string): string | null {
   return guessSheetCandidates(fileName)[0] ?? null;
 }
 
+export type MatchOpts = {
+  /**
+   * When true: only exact/near-exact sheet-number token matches.
+   * No title fuzzy matching. Use for bulk multi-file so files don't collapse.
+   */
+  strict?: boolean;
+};
+
 /**
  * Match a file to a drawing in the pool.
- * 1) Exact sheet number from filename tokens
- * 2) Filename contains drawing number (any position)
- * 3) Drawing title words appear in filename
  */
 export function matchDrawingByFileName<
   T extends { id: string; number: string; title?: string },
->(drawings: T[], fileName: string): T | null {
+>(drawings: T[], fileName: string, opts?: MatchOpts): T | null {
   if (!drawings.length) return null;
   const base = baseName(fileName);
   const baseNorm = normalizeSheetNo(base);
   const baseLoose = base.toUpperCase().replace(/[^A-Z0-9]+/g, " ");
+  const strict = opts?.strict === true;
 
   const byNorm = new Map(
     drawings.map((d) => [normalizeSheetNo(d.number), d] as const),
@@ -78,28 +80,30 @@ export function matchDrawingByFileName<
 
   // 1) Candidates from filename → exact register hit
   for (const c of guessSheetCandidates(fileName)) {
-    const hit = byNorm.get(c) ?? byNorm.get(c.replace(/-/g, ""));
+    const hit = byNorm.get(c);
     if (hit) return hit;
-    // no-hyphen map lookup
     for (const [k, d] of byNorm) {
       if (k.replace(/-/g, "") === c.replace(/-/g, "")) return d;
     }
   }
 
-  // 2) Each drawing number contained in the filename (longest first)
+  if (strict) return null;
+
+  // 2) Drawing number contained in filename (longest first)
   const sorted = [...drawings].sort(
-    (a, b) => normalizeSheetNo(b.number).length - normalizeSheetNo(a.number).length,
+    (a, b) =>
+      normalizeSheetNo(b.number).length - normalizeSheetNo(a.number).length,
   );
   for (const d of sorted) {
     const n = normalizeSheetNo(d.number);
     const compact = n.replace(/-/g, "");
+    if (compact.length < 3) continue; // avoid tiny false positives
     if (baseNorm.includes(n) || baseNorm.includes(compact)) return d;
-    // spaced form: "E 101"
     const spaced = n.replace("-", " ");
     if (baseLoose.includes(spaced) || baseLoose.includes(compact)) return d;
   }
 
-  // 3) Title phrase (at least 2 significant words) in filename
+  // 3) Title phrase
   for (const d of drawings) {
     if (!d.title) continue;
     const words = d.title
@@ -135,7 +139,10 @@ const STOP = new Set([
 ]);
 
 /** Suggest a sheet number for creating a new register row from a file. */
-export function suggestNumberFromFile(fileName: string, used: Set<string>): string {
+export function suggestNumberFromFile(
+  fileName: string,
+  used: Set<string>,
+): string {
   const guess = guessSheetNumber(fileName);
   if (guess && !used.has(normalizeSheetNo(guess))) return guess;
   const base = baseName(fileName)

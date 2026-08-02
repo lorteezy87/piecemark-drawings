@@ -58,9 +58,9 @@ export function IfcModelViewer({
   const rootRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(rootRef);
-  const [modelId, setModelId] = useState<string>(IFC_CATALOG[0].id);
+  const [modelId, setModelId] = useState<string>("none");
   const [customUrl, setCustomUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [meshCount, setMeshCount] = useState(0);
   const [picked, setPicked] = useState<IfcPickInfo | null>(null);
@@ -90,6 +90,7 @@ export function IfcModelViewer({
       }
       setCustomUrl(url);
       setModelId("custom");
+      setLoading(true);
       setUploadedName(name);
     })();
     return () => {
@@ -113,11 +114,29 @@ export function IfcModelViewer({
   const activeUrl =
     customUrl ??
     IFC_CATALOG.find((m) => m.id === modelId)?.url ??
-    IFC_CATALOG[0].url;
+    null;
 
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
+
+    // No sample models — wait for user upload / IDB restore
+    if (!activeUrl) {
+      setLoading(false);
+      setError(null);
+      setMeshCount(0);
+      mount.replaceChildren();
+      const empty = document.createElement("div");
+      empty.className =
+        "flex h-full min-h-[420px] flex-col items-center justify-center gap-2 px-6 text-center text-sm text-[var(--color-muted)]";
+      empty.innerHTML =
+        "<div style=\"font-weight:600;color:var(--color-fg)\">No IFC loaded</div><div>Upload a job .ifc / .ifczip (Tekla, SDS/2, Revit, or Blender Bonsai export).</div>";
+      mount.appendChild(empty);
+      return () => {
+        mount.replaceChildren();
+      };
+    }
+
     let disposed = false;
     let loaded: LoadedIfcModel | null = null;
     let raf = 0;
@@ -505,6 +524,7 @@ export function IfcModelViewer({
       const url = URL.createObjectURL(file);
       setCustomUrl(url);
       setModelId("custom");
+      setLoading(true);
       setUploadedName(name);
       setError(null);
     })();
@@ -543,34 +563,13 @@ export function IfcModelViewer({
             fullscreen
           </div>
         </div>
-        <Select
-          id="ifc-model-select"
-          name="ifcModel"
-          aria-label="IFC model"
-          value={customUrl ? "custom" : modelId}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v === "custom") return;
-            if (customUrl) {
-              URL.revokeObjectURL(customUrl);
-              setCustomUrl(null);
-            }
-            setUploadedName(null);
-            setModelId(v);
-          }}
-          className="h-8 w-[min(100%,220px)] text-xs"
-        >
-          {IFC_CATALOG.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
-          {customUrl && (
-            <option value="custom">
-              {uploadedName ? `Uploaded: ${uploadedName}` : "Uploaded IFC"}
-            </option>
-          )}
-        </Select>
+        <div className="max-w-[200px] truncate font-mono-num text-[11px] text-[var(--color-muted)]">
+          {uploadedName
+            ? uploadedName
+            : customUrl
+              ? "Uploaded IFC"
+              : "No model loaded"}
+        </div>
         <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-border)] px-2 py-1.5 text-xs text-[var(--color-muted)] hover:border-[var(--color-border-strong)] hover:text-[var(--color-fg)]">
           <Upload className="size-3.5" />
           Load IFC / Blender
