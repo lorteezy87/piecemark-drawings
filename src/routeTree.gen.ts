@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DrawingsRouteImport } from './routes/drawings'
 import { Route as FieldRouteImport } from './routes/field'
+import { Route as HelpRouteImport } from './routes/help'
 import { Route as HoldsRouteImport } from './routes/holds'
 import { Route as IdsRouteImport } from './routes/ids'
 import { Route as LoginRouteImport } from './routes/login'
@@ -45,6 +46,11 @@ const DrawingsRoute = DrawingsRouteImport.update({
 const FieldRoute = FieldRouteImport.update({
   id: '/field',
   path: '/field',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpRoute = HelpRouteImport.update({
+  id: '/help',
+  path: '/help',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HoldsRoute = HoldsRouteImport.update({
@@ -147,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/drawings': typeof DrawingsRouteWithChildren
   '/field': typeof FieldRoute
+  '/help': typeof HelpRoute
   '/holds': typeof HoldsRoute
   '/ids': typeof IdsRoute
   '/login': typeof LoginRoute
@@ -170,6 +177,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/field': typeof FieldRoute
+  '/help': typeof HelpRoute
   '/holds': typeof HoldsRoute
   '/ids': typeof IdsRoute
   '/login': typeof LoginRoute
@@ -195,6 +203,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/drawings': typeof DrawingsRouteWithChildren
   '/field': typeof FieldRoute
+  '/help': typeof HelpRoute
   '/holds': typeof HoldsRoute
   '/ids': typeof IdsRoute
   '/login': typeof LoginRoute
@@ -221,6 +230,7 @@ export interface FileRouteTypes {
     | '/'
     | '/drawings'
     | '/field'
+    | '/help'
     | '/holds'
     | '/ids'
     | '/login'
@@ -244,6 +254,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/field'
+    | '/help'
     | '/holds'
     | '/ids'
     | '/login'
@@ -268,6 +279,7 @@ export interface FileRouteTypes {
     | '/'
     | '/drawings'
     | '/field'
+    | '/help'
     | '/holds'
     | '/ids'
     | '/login'
@@ -293,6 +305,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DrawingsRoute: typeof DrawingsRouteWithChildren
   FieldRoute: typeof FieldRoute
+  HelpRoute: typeof HelpRoute
   HoldsRoute: typeof HoldsRoute
   IdsRoute: typeof IdsRoute
   LoginRoute: typeof LoginRoute
@@ -332,6 +345,13 @@ declare module '@tanstack/react-router' {
       path: '/field'
       fullPath: '/field'
       preLoaderRoute: typeof FieldRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help': {
+      id: '/help'
+      path: '/help'
+      fullPath: '/help'
+      preLoaderRoute: typeof HelpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/holds': {
@@ -490,6 +510,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DrawingsRoute: DrawingsRouteWithChildren,
   FieldRoute: FieldRoute,
+  HelpRoute: HelpRoute,
   HoldsRoute: HoldsRoute,
   IdsRoute: IdsRoute,
   LoginRoute: LoginRoute,

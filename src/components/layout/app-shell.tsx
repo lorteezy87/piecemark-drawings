@@ -1,6 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Box,
+  BookOpen,
   Building2,
   ClipboardList,
   Factory,
@@ -53,6 +54,7 @@ const nav: {
   { to: "/holds", label: "Holds & Blockers", icon: OctagonAlert },
   { to: "/projects", label: "Jobs", icon: Building2 },
   { to: "/settings", label: "Settings & Sync", icon: Settings },
+  { to: "/help", label: "How to use", icon: BookOpen },
 ];
 
 export function AppShell({
