@@ -28,6 +28,7 @@ import { downloadSheetFromServer } from "@/lib/workspace-sync";
 import { useAppStore } from "@/lib/store";
 import { authEnabled } from "@/lib/auth/client";
 import { UserButton } from "@/lib/auth/gates";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { USER_ROLE_LABELS } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -70,11 +71,21 @@ export function AppShell({
   const projects = useAppStore((s) => s.projects);
   const crewRole = useAppStore((s) => s.crewRole);
   const orgName = useAppStore((s) => s.orgName);
+  const setSessionActor = useAppStore((s) => s.setSessionActor);
+  const { user } = useCurrentUserState();
   const selectedProjectId = useAppStore((s) => s.selectedProjectId);
   const setSelectedProjectId = useAppStore((s) => s.setSelectedProjectId);
   const drawings = useAppStore((s) => s.drawings);
   const sheetAssets = useAppStore((s) => s.sheetAssets);
   const setSheetAsset = useAppStore((s) => s.setSheetAsset);
+
+  useEffect(() => {
+    if (!user) return;
+    const name =
+      user.displayName || user.primaryEmail?.split("@")[0] || "Station";
+    setSessionActor(name);
+  }, [user, setSessionActor]);
+
 
   // Restore PDF/image blobs from IndexedDB, then cloud file store
   const hydrateOnce = useRef(false);

@@ -34,7 +34,11 @@ import type {
   UserRole,
 } from "@/lib/types";
 import { idbDeleteFile, idbPutFile, sheetAssetKey } from "@/lib/idb-files";
+import { newId } from "@/lib/ids";
 import type { JobPackage } from "@/lib/job-package";
+import { JOB_PACKAGE_VERSION } from "@/lib/job-package";
+import { can, type Permission } from "@/lib/permissions";
+import { toast } from "sonner";
 import {
   DRAWING_STATUS_LABELS,
   FAB_READY_STATUSES,
@@ -73,6 +77,8 @@ interface AppState {
   crewRole: UserRole;
   orgName: string;
   orgRfiEmail: string;
+  /** Display name for activity log (from auth). */
+  sessionActor: string;
   projects: Project[];
   sequences: Sequence[];
   drawingSets: DrawingSet[];
@@ -148,6 +154,7 @@ interface AppState {
   ) => void;
   resetDemoData: () => void;
   setCrewRole: (role: UserRole) => void;
+  setSessionActor: (name: string) => void;
   setOrgProfile: (input: { orgName?: string; orgRfiEmail?: string }) => void;
   setSheetAsset: (drawingId: string, asset: SheetAsset) => void;
   clearSheetAsset: (drawingId: string) => void;
@@ -212,6 +219,7 @@ function seedState() {
     crewRole: "detailer" as UserRole,
     orgName: "PieceMark Demo Fab",
     orgRfiEmail: "",
+    sessionActor: "Station",
     projects: seedProjects,
     sequences: seedSequences,
     drawingSets: seedDrawingSets,
@@ -231,7 +239,7 @@ function makeActivity(
   partial: Omit<ActivityEvent, "id" | "at"> & { at?: string },
 ): ActivityEvent {
   return {
-    id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    id: newId("act"),
     at: partial.at ?? new Date().toISOString(),
     projectId: partial.projectId,
     kind: partial.kind,
@@ -254,17 +262,39 @@ function pushActivity(
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+function actorName(s: { sessionActor: string }, fallback?: string): string {
+  return (fallback && fallback !== "User" ? fallback : null) || s.sessionActor || "Station";
+}
+
+function deny(role: UserRole, perm: Permission): boolean {
+  if (can(role, perm)) return false;
+  toast.error(`Not allowed: ${perm} (role: ${role})`);
+  return true;
+}
+
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       ...seedState(),
       sheetAssets: {},
       setCrewRole: (role) => set({ crewRole: role }),
+      setSessionActor: (name) =>
+        set({ sessionActor: name.trim() || "Station" }),
       setOrgProfile: (input) =>
-        set((s) => ({
-          orgName: input.orgName ?? s.orgName,
-          orgRfiEmail: input.orgRfiEmail ?? s.orgRfiEmail,
-        })),
+        set((s) => {
+          if (
+            !can(s.crewRole, "admin.settings") &&
+            !can(s.crewRole, "drawing.edit")
+          ) {
+            toast.error("Not allowed: update org profile");
+            return s;
+          }
+          return {
+            orgName: input.orgName ?? s.orgName,
+            orgRfiEmail: input.orgRfiEmail ?? s.orgRfiEmail,
+          };
+        }),
       setSelectedProjectId: (id) => set({ selectedProjectId: id }),
       setFilters: (partial) =>
         set((s) => ({ filters: { ...s.filters, ...partial } })),
@@ -272,6 +302,7 @@ export const useAppStore = create<AppState>()(
 
       updateDrawingStatus: (id, status, note) =>
         set((s) => {
+          if (deny(s.crewRole, "status.change")) return s;
           const d = s.drawings.find((x) => x.id === id);
           return {
             drawings: s.drawings.map((x) =>
@@ -295,7 +326,7 @@ export const useAppStore = create<AppState>()(
                   makeActivity({
                     projectId: d.projectId,
                     kind: status === "on_hold" ? "hold" : "status",
-                    actor: "User",
+                    actor: actorName(s),
                     summary: `${d.number} → ${DRAWING_STATUS_LABELS[status]}`,
                     detail: note,
                     drawingId: d.id,
@@ -306,26 +337,31 @@ export const useAppStore = create<AppState>()(
         }),
 
       updateSetStatus: (id, status) =>
-        set((s) => ({
-          drawingSets: s.drawingSets.map((ds) =>
-            ds.id === id
-              ? {
-                  ...ds,
-                  status,
-                  issuedDate:
-                    status === "issued_for_fab" ||
-                    status === "issued_for_erection"
-                      ? (ds.issuedDate ?? today())
-                      : ds.issuedDate,
-                }
-              : ds,
-          ),
-        })),
+        set((s) => {
+          if (deny(s.crewRole, "status.change")) return s;
+          return {
+            drawingSets: s.drawingSets.map((ds) =>
+              ds.id === id
+                ? {
+                    ...ds,
+                    status,
+                    issuedDate:
+                      status === "issued_for_fab" ||
+                      status === "issued_for_erection"
+                        ? (ds.issuedDate ?? today())
+                        : ds.issuedDate,
+                  }
+                : ds,
+            ),
+          };
+        }),
 
       placeHold: (drawingId, reason, actor = "User") =>
         set((s) => {
+          if (deny(s.crewRole, "hold.manage")) return s;
           const d = s.drawings.find((x) => x.id === drawingId);
           if (!d) return s;
+          actor = actorName(s, actor);
           return {
             drawings: s.drawings.map((x) =>
               x.id === drawingId
@@ -348,8 +384,10 @@ export const useAppStore = create<AppState>()(
 
       releaseHold: (drawingId, newStatus = "issued_for_fab", actor = "User") =>
         set((s) => {
+          if (deny(s.crewRole, "hold.manage")) return s;
           const d = s.drawings.find((x) => x.id === drawingId);
           if (!d) return s;
+          actor = actorName(s, actor);
           return {
             drawings: s.drawings.map((x) =>
               x.id === drawingId
@@ -380,11 +418,12 @@ export const useAppStore = create<AppState>()(
 
       issueRevision: (drawingId, description, status, issuedBy) =>
         set((s) => {
+          if (deny(s.crewRole, "status.change")) return s;
           const d = s.drawings.find((x) => x.id === drawingId);
           if (!d) return s;
           const rev = nextRevision(d.currentRev);
           const revision: Revision = {
-            id: `rev-${drawingId}-${rev}-${Date.now()}`,
+            id: newId("rev"),
             drawingId,
             rev,
             date: today(),
@@ -421,9 +460,12 @@ export const useAppStore = create<AppState>()(
         }),
 
       addMarkup: (markup) =>
-        set((s) => ({
-          markups: [{ ...markup, id: `mk-${Date.now()}` }, ...s.markups],
-        })),
+        set((s) => {
+          if (deny(s.crewRole, "drawing.edit")) return s;
+          return {
+            markups: [{ ...markup, id: newId("mk") }, ...s.markups],
+          };
+        }),
 
       resolveMarkup: (id) =>
         set((s) => ({
@@ -434,6 +476,7 @@ export const useAppStore = create<AppState>()(
 
       updateRfiStatus: (id, status, answer, options) =>
         set((s) => {
+          if (deny(s.crewRole, "rfi.answer")) return s;
           const rfi = s.rfis.find((r) => r.id === id);
           if (!rfi) return s;
           let drawings = s.drawings;
@@ -470,7 +513,7 @@ export const useAppStore = create<AppState>()(
               makeActivity({
                 projectId: rfi.projectId,
                 kind: "rfi",
-                actor: "User",
+                actor: actorName(s),
                 summary: `${rfi.number} → ${status}${
                   options?.releaseLinkedHolds ? " (holds released)" : ""
                 }`,
@@ -482,7 +525,8 @@ export const useAppStore = create<AppState>()(
         }),
 
       addRfi: (input) => {
-        const id = `rfi-${Date.now()}`;
+        if (deny(get().crewRole, "rfi.create")) return "";
+        const id = newId("rfi");
         const projectRfis = get().rfis.filter(
           (r) => r.projectId === input.projectId,
         );
@@ -521,7 +565,8 @@ export const useAppStore = create<AppState>()(
       },
 
       createTransmittal: (input) => {
-        const id = `tr-${Date.now()}`;
+        if (deny(get().crewRole, "transmittal.issue")) return "";
+        const id = newId("tr");
         const count = get().transmittals.filter(
           (t) => t.projectId === input.projectId,
         ).length;
@@ -571,6 +616,7 @@ export const useAppStore = create<AppState>()(
 
       issueTransmittal: (id) =>
         set((s) => {
+          if (deny(s.crewRole, "transmittal.issue")) return s;
           const tr = s.transmittals.find((t) => t.id === id);
           return {
             transmittals: s.transmittals.map((t) =>
@@ -598,7 +644,8 @@ export const useAppStore = create<AppState>()(
         }),
 
       createSubmittal: (input) => {
-        const id = `sub-${Date.now()}`;
+        if (deny(get().crewRole, "submittal.manage")) return "";
+        const id = newId("sub");
         const count = get().submittals.filter(
           (x) => x.projectId === input.projectId,
         ).length;
@@ -623,7 +670,7 @@ export const useAppStore = create<AppState>()(
             makeActivity({
               projectId: input.projectId,
               kind: "submittal",
-              actor: "User",
+              actor: actorName(get()),
               summary: `${input.submitNow ? "Submitted" : "Drafted"} ${number} — ${input.title}`,
               submittalId: id,
             }),
@@ -634,6 +681,7 @@ export const useAppStore = create<AppState>()(
 
       updateSubmittalStatus: (id, status, notes) =>
         set((s) => {
+          if (deny(s.crewRole, "submittal.manage")) return s;
           const sub = s.submittals.find((x) => x.id === id);
           return {
             submittals: s.submittals.map((x) =>
@@ -662,7 +710,7 @@ export const useAppStore = create<AppState>()(
                   makeActivity({
                     projectId: sub.projectId,
                     kind: "submittal",
-                    actor: "User",
+                    actor: actorName(s),
                     summary: `${sub.number} → ${status.replace(/_/g, " ")}`,
                     detail: notes,
                     submittalId: sub.id,
@@ -736,7 +784,8 @@ export const useAppStore = create<AppState>()(
       },
 
       createProject: (input) => {
-        const id = `proj-${Date.now()}`;
+        if (deny(get().crewRole, "job.create")) return "";
+        const id = newId("proj");
         const project: Project = {
           id,
           name: input.name,
@@ -760,7 +809,7 @@ export const useAppStore = create<AppState>()(
             makeActivity({
               projectId: id,
               kind: "system",
-              actor: "User",
+              actor: actorName(get()),
               summary: `Created job ${project.jobNumber}`,
             }),
           ),
@@ -769,7 +818,8 @@ export const useAppStore = create<AppState>()(
       },
 
       createDrawingSet: (input) => {
-        const id = `set-${Date.now()}`;
+        if (deny(get().crewRole, "drawing.edit")) return "";
+        const id = newId("set");
         const drawingSet: DrawingSet = {
           id,
           projectId: input.projectId,
@@ -788,7 +838,7 @@ export const useAppStore = create<AppState>()(
             makeActivity({
               projectId: input.projectId,
               kind: "system",
-              actor: "User",
+              actor: actorName(get()),
               summary: `Created set ${input.code}`,
             }),
           ),
@@ -797,7 +847,8 @@ export const useAppStore = create<AppState>()(
       },
 
       createDrawing: (input) => {
-        const id = `dwg-${Date.now()}`;
+        if (deny(get().crewRole, "drawing.edit")) return "";
+        const id = newId("dwg");
         const sheets = get().drawings.filter((d) => d.setId === input.setId);
         const drawing: Drawing = {
           id,
@@ -823,7 +874,7 @@ export const useAppStore = create<AppState>()(
             makeActivity({
               projectId: input.projectId,
               kind: "status",
-              actor: "User",
+              actor: actorName(get()),
               summary: `Added sheet ${input.number}`,
               drawingId: id,
             }),
@@ -835,7 +886,7 @@ export const useAppStore = create<AppState>()(
       exportPackage: () => {
         const s = get();
         return {
-          version: 1 as const,
+          version: JOB_PACKAGE_VERSION,
           exportedAt: new Date().toISOString(),
           app: "piecemark" as const,
           projects: s.projects,
@@ -849,6 +900,9 @@ export const useAppStore = create<AppState>()(
           transmittals: s.transmittals,
           activities: s.activities,
           selectedProjectId: s.selectedProjectId,
+          orgName: s.orgName,
+          orgRfiEmail: s.orgRfiEmail,
+          crewRole: s.crewRole,
         };
       },
 
@@ -868,7 +922,12 @@ export const useAppStore = create<AppState>()(
             selectedProjectId:
               pkg.selectedProjectId ?? pkg.projects[0]?.id ?? null,
             sheetAssets: {},
-                });
+            ...(pkg.orgName !== undefined ? { orgName: pkg.orgName } : {}),
+            ...(pkg.orgRfiEmail !== undefined
+              ? { orgRfiEmail: pkg.orgRfiEmail }
+              : {}),
+            ...(pkg.crewRole !== undefined ? { crewRole: pkg.crewRole } : {}),
+          });
           return;
         }
         set((s) => {
@@ -888,6 +947,12 @@ export const useAppStore = create<AppState>()(
             markups: mergeById(s.markups, pkg.markups),
             transmittals: mergeById(s.transmittals, pkg.transmittals),
             activities: [...pkg.activities, ...s.activities].slice(0, 200),
+            selectedProjectId:
+              pkg.selectedProjectId ?? s.selectedProjectId,
+            ...(pkg.orgName !== undefined ? { orgName: pkg.orgName } : {}),
+            ...(pkg.orgRfiEmail !== undefined
+              ? { orgRfiEmail: pkg.orgRfiEmail }
+              : {}),
           };
         });
       },
@@ -911,12 +976,13 @@ export const useAppStore = create<AppState>()(
         })),
 
       createSequence: (input) => {
+        if (deny(get().crewRole, "drawing.edit")) return "";
         const existing = get().sequences.filter(
           (x) => x.projectId === input.projectId,
         );
         const number =
           existing.reduce((m, x) => Math.max(m, x.number), 0) + 1;
-        const id = `seq-${Date.now()}`;
+        const id = newId("seq");
         const seq: Sequence = {
           id,
           projectId: input.projectId,
@@ -932,6 +998,9 @@ export const useAppStore = create<AppState>()(
       },
 
       upsertDrawingMarks: (projectId, entries) => {
+        if (deny(get().crewRole, "drawing.edit")) {
+          return { sheetsCreated: 0, marksAdded: 0 };
+        }
         let sheetsCreated = 0;
         let marksAdded = 0;
         set((s) => {
@@ -951,7 +1020,7 @@ export const useAppStore = create<AppState>()(
                 (x) => x.projectId === projectId && x.code === "SET-IMPORT",
               )?.id;
               if (!setId) {
-                setId = `set-import-${Date.now()}`;
+                setId = newId("set-import");
                 drawingSets = [
                   {
                     id: setId,
@@ -972,7 +1041,7 @@ export const useAppStore = create<AppState>()(
               );
               if (!importDwg) {
                 importDwg = {
-                  id: `dwg-import-${Date.now()}`,
+                  id: newId("dwg-import"),
                   projectId,
                   setId,
                   number: "IMPORT-PIECES",
@@ -1013,7 +1082,7 @@ export const useAppStore = create<AppState>()(
                   x.code.toLowerCase() === code.toLowerCase(),
               )?.id;
               if (!setId) {
-                setId = `set-${Date.now()}-${code}`;
+                setId = newId("set");
                 drawingSets = [
                   {
                     id: setId,
@@ -1029,7 +1098,7 @@ export const useAppStore = create<AppState>()(
                 ];
               }
               d = {
-                id: `dwg-${Date.now()}-${dwgNo}`,
+                id: newId("dwg"),
                 projectId,
                 setId,
                 number: dwgNo,
@@ -1062,7 +1131,10 @@ export const useAppStore = create<AppState>()(
         return { sheetsCreated, marksAdded };
       },
 
-      resetDemoData: () => set({ ...seedState(), sheetAssets: {} }),
+      resetDemoData: () => {
+        if (deny(get().crewRole, "job.reset")) return;
+        set({ ...seedState(), sheetAssets: {} });
+      },
     }),
     {
       name: "piecemark-drawings-v5",
@@ -1091,6 +1163,7 @@ export const useAppStore = create<AppState>()(
         crewRole: s.crewRole,
         orgName: s.orgName,
         orgRfiEmail: s.orgRfiEmail,
+        sessionActor: s.sessionActor,
         projects: s.projects,
         sequences: s.sequences,
         drawings: s.drawings,

@@ -38,23 +38,47 @@ export const pushWorkspace = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((data: unknown) => {
     if (!data || typeof data !== "object") throw new Error("Invalid body");
-    const o = data as { package?: JobPackage; baseRevision?: number };
+    const o = data as {
+      package?: JobPackage;
+      baseRevision?: number;
+      force?: boolean;
+    };
     if (!o.package || o.package.app !== "piecemark") {
       throw new Error("Invalid PieceMark package");
     }
     return {
       package: o.package,
       baseRevision: typeof o.baseRevision === "number" ? o.baseRevision : 0,
+      force: o.force === true,
     };
   })
   .handler(async ({ data, context }) => {
     const sql = await getSql();
-    const existing = await sql.query<{ revision: number }>(
-      `SELECT revision FROM pm_workspace WHERE user_id = $1`,
+    const existing = await sql.query<{
+      revision: number;
+      package_json: JobPackage | string;
+    }>(
+      `SELECT revision, package_json FROM pm_workspace WHERE user_id = $1`,
       [context.userId],
     );
     const current = existing[0]?.revision ?? 0;
-    // Optimistic concurrency: warn but still accept latest (last-write-wins with revision bump)
+
+    // Optimistic concurrency: reject stale push unless force
+    if (current > 0 && data.baseRevision < current && !data.force) {
+      const raw = existing[0]?.package_json;
+      const remotePkg =
+        typeof raw === "string"
+          ? (JSON.parse(raw) as JobPackage)
+          : (raw as JobPackage | undefined) ?? null;
+      return {
+        revision: current,
+        conflict: true,
+        serverRevisionBefore: current,
+        package: remotePkg,
+        accepted: false as const,
+      };
+    }
+
     const nextRev = current + 1;
     const json = JSON.stringify(data.package);
     await sql.query(
@@ -67,7 +91,8 @@ export const pushWorkspace = createServerFn({ method: "POST" })
       [context.userId, json, nextRev],
     );
 
-    // Mirror project index rows for future queries
+    // Mirror project index; prune jobs removed from package
+    const keepIds = data.package.projects.map((p) => p.id);
     for (const p of data.package.projects) {
       await sql.query(
         `INSERT INTO pm_project (id, user_id, job_number, name, data, updated_at)
@@ -81,11 +106,24 @@ export const pushWorkspace = createServerFn({ method: "POST" })
         [p.id, context.userId, p.jobNumber, p.name, JSON.stringify(p)],
       );
     }
+    if (keepIds.length === 0) {
+      await sql.query(`DELETE FROM pm_project WHERE user_id = $1`, [
+        context.userId,
+      ]);
+    } else {
+      await sql.query(
+        `DELETE FROM pm_project
+         WHERE user_id = $1
+           AND NOT (id = ANY($2::text[]))`,
+        [context.userId, keepIds],
+      );
+    }
 
     return {
       revision: nextRev,
       conflict: data.baseRevision > 0 && data.baseRevision < current,
       serverRevisionBefore: current,
+      accepted: true as const,
     };
   });
 

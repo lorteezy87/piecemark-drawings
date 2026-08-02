@@ -29,12 +29,8 @@ export function getIfcApi(): Promise<WebIFC.IfcAPI> {
   if (!apiPromise) {
     apiPromise = (async () => {
       const api = new WebIFC.IfcAPI();
-      // Production: load WASM from CDN (smaller deploy). Dev: local /public/wasm.
-      const wasmPath =
-        typeof import.meta !== "undefined" && import.meta.env?.PROD
-          ? "https://cdn.jsdelivr.net/npm/web-ifc@0.0.77/"
-          : "/wasm/";
-      api.SetWasmPath(wasmPath, true);
+      // Same-origin WASM (public/wasm) — works offline and avoids CDN CSP blocks.
+      api.SetWasmPath("/wasm/", true);
       await api.Init();
       return api;
     })();

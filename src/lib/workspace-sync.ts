@@ -1,5 +1,7 @@
 import { toast } from "sonner";
 import type { JobPackage } from "@/lib/job-package";
+import { can } from "@/lib/permissions";
+import type { UserRole } from "@/lib/types";
 import {
   getDrawingFile,
   listDrawingFiles,
@@ -11,6 +13,7 @@ import {
 const REV_KEY = "piecemark-workspace-revision";
 const AUTO_KEY = "piecemark-auto-sync";
 const SERVER_SHEETS_KEY = "piecemark-server-sheets";
+const DIRTY_KEY = "piecemark-local-dirty";
 
 export function getLocalRevision(): number {
   try {
@@ -23,6 +26,23 @@ export function getLocalRevision(): number {
 export function setLocalRevision(n: number) {
   try {
     localStorage.setItem(REV_KEY, String(n));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function isLocalDirty(): boolean {
+  try {
+    return localStorage.getItem(DIRTY_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setLocalDirty(dirty: boolean) {
+  try {
+    if (dirty) localStorage.setItem(DIRTY_KEY, "1");
+    else localStorage.removeItem(DIRTY_KEY);
   } catch {
     /* ignore */
   }
@@ -47,44 +67,93 @@ export function setAutoSyncEnabled(on: boolean) {
   }
 }
 
-export async function syncPull(): Promise<JobPackage | null> {
+export async function syncPull(): Promise<{
+  package: JobPackage | null;
+  revision: number;
+  updatedAt: string | null;
+}> {
   const res = await pullWorkspace();
-  if (res.package) setLocalRevision(res.revision);
-  return res.package;
+  return res;
 }
+
+export type SyncPushOpts = {
+  silent?: boolean;
+  force?: boolean;
+  crewRole?: UserRole;
+};
 
 export async function syncPush(
   pkg: JobPackage,
-  opts?: { silent?: boolean },
-): Promise<number> {
+  opts?: SyncPushOpts,
+): Promise<{ revision: number; accepted: boolean; conflict: boolean }> {
+  if (opts?.crewRole && !can(opts.crewRole, "sync.push")) {
+    if (!opts.silent) toast.error("Your station role cannot push to cloud");
+    return { revision: getLocalRevision(), accepted: false, conflict: false };
+  }
   const base = getLocalRevision();
   const res = await pushWorkspace({
-    data: { package: pkg, baseRevision: base },
+    data: {
+      package: pkg,
+      baseRevision: base,
+      force: opts?.force === true,
+    },
   });
-  setLocalRevision(res.revision);
-  if (res.conflict && !opts?.silent) {
-    toast.message(
-      "Cloud had a newer revision — overwrote with this device (last-write-wins).",
-    );
+
+  if (!res.accepted) {
+    if (!opts?.silent) {
+      toast.error(
+        `Cloud is at rev ${res.revision} (this device ${base}). Pull first, or Force push from Settings.`,
+      );
+    }
+    return {
+      revision: res.revision,
+      accepted: false,
+      conflict: true,
+    };
   }
-  return res.revision;
+
+  setLocalRevision(res.revision);
+  setLocalDirty(false);
+  if (res.conflict && !opts?.silent) {
+    toast.message("Force-pushed over a newer cloud revision.");
+  }
+  return {
+    revision: res.revision,
+    accepted: true,
+    conflict: !!res.conflict,
+  };
 }
 
 /** Debounced auto-push controller (module singleton). */
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let lastPushErrorAt = 0;
+let pushInFlight = false;
+let pullOnceDone = false;
 
-export function scheduleAutoPush(getPackage: () => JobPackage) {
+export function scheduleAutoPush(
+  getPackage: () => JobPackage,
+  opts?: { crewRole?: UserRole },
+) {
   if (!isAutoSyncEnabled()) return;
+  if (opts?.crewRole && !can(opts.crewRole, "sync.push")) return;
+  setLocalDirty(true);
   if (pushTimer) clearTimeout(pushTimer);
   pushTimer = setTimeout(() => {
     pushTimer = null;
+    if (pushInFlight) {
+      // re-schedule after in-flight push
+      scheduleAutoPush(getPackage, opts);
+      return;
+    }
     void (async () => {
+      pushInFlight = true;
       try {
-        await syncPush(getPackage(), { silent: true });
+        await syncPush(getPackage(), {
+          silent: true,
+          crewRole: opts?.crewRole,
+        });
       } catch (e) {
         const now = Date.now();
-        // Don't spam toasts (auth signed-out etc.)
         if (now - lastPushErrorAt > 60_000) {
           lastPushErrorAt = now;
           const msg = e instanceof Error ? e.message : "Auto-sync failed";
@@ -94,9 +163,46 @@ export function scheduleAutoPush(getPackage: () => JobPackage) {
             toast.error(`Auto-sync: ${msg}`);
           }
         }
+      } finally {
+        pushInFlight = false;
       }
     })();
   }, 2500);
+}
+
+/**
+ * One-shot: if cloud is newer and local isn't dirty, pull automatically.
+ * Returns package when caller should importPackage(pkg, "replace").
+ */
+export async function maybeAutoPull(opts?: {
+  forceConfirmDirty?: boolean;
+}): Promise<JobPackage | null> {
+  if (pullOnceDone) return null;
+  pullOnceDone = true;
+  try {
+    const remote = await pullWorkspace();
+    if (!remote.package) return null;
+    const local = getLocalRevision();
+    if (remote.revision <= local) return null;
+    if (isLocalDirty() && !opts?.forceConfirmDirty) {
+      toast.message(
+        `Cloud rev ${remote.revision} is newer. Pull from Settings when ready (local has unsaved changes).`,
+      );
+      return null;
+    }
+    setLocalRevision(remote.revision);
+    setLocalDirty(false);
+    toast.success(`Synced cloud workspace (rev ${remote.revision})`);
+    return remote.package;
+  } catch {
+    // signed out / offline — ignore
+    return null;
+  }
+}
+
+/** Reset pull-once guard (e.g. after sign-in). */
+export function resetAutoPullGuard() {
+  pullOnceDone = false;
 }
 
 export async function uploadSheetToServer(opts: {
@@ -109,7 +215,8 @@ export async function uploadSheetToServer(opts: {
     if (opts.blob.size > 6 * 1024 * 1024) {
       return {
         ok: false,
-        reason: "File > 6MB kept local only (IndexedDB). Cloud package still syncs metadata.",
+        reason:
+          "File > 6MB kept local only (IndexedDB). Cloud package still syncs metadata.",
       };
     }
     const buf = new Uint8Array(await opts.blob.arrayBuffer());
@@ -180,5 +287,17 @@ export async function listRemoteSheets() {
     return await listDrawingFiles();
   } catch {
     return [];
+  }
+}
+
+/** After pull: mark all remote sheet files as known for hydrate. */
+export async function rememberAllRemoteSheets() {
+  try {
+    const rows = await listDrawingFiles();
+    for (const r of rows) {
+      if (r.drawing_id) rememberServerSheet(r.drawing_id);
+    }
+  } catch {
+    /* ignore */
   }
 }

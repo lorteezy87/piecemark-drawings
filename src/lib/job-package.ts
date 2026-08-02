@@ -9,12 +9,14 @@ import type {
   Sequence,
   Submittal,
   Transmittal,
+  UserRole,
 } from "@/lib/types";
 
-export const JOB_PACKAGE_VERSION = 1 as const;
+/** Package schema version — v2 adds org profile fields. */
+export const JOB_PACKAGE_VERSION = 2 as const;
 
 export type JobPackage = {
-  version: typeof JOB_PACKAGE_VERSION;
+  version: number;
   exportedAt: string;
   app: "piecemark";
   projects: Project[];
@@ -28,6 +30,10 @@ export type JobPackage = {
   transmittals: Transmittal[];
   activities: ActivityEvent[];
   selectedProjectId: string | null;
+  /** v2: company / station defaults (optional for v1 imports) */
+  orgName?: string;
+  orgRfiEmail?: string;
+  crewRole?: UserRole;
 };
 
 export function downloadJobPackage(pkg: JobPackage, filename?: string) {

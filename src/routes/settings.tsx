@@ -15,7 +15,10 @@ import { useAppStore } from "@/lib/store";
 import {
   getLocalRevision,
   isAutoSyncEnabled,
+  isLocalDirty,
+  rememberAllRemoteSheets,
   setAutoSyncEnabled,
+  setLocalRevision,
   syncPull,
   syncPush,
 } from "@/lib/workspace-sync";
@@ -39,21 +42,34 @@ function SettingsPage() {
   const project =
     projects.find((p) => p.id === selectedProjectId) ?? projects[0];
 
-  const [busy, setBusy] = useState<"pull" | "push" | "csv" | null>(null);
+  const [busy, setBusy] = useState<"pull" | "push" | "force" | "csv" | null>(
+    null,
+  );
   const [rev, setRev] = useState(() => getLocalRevision());
   const [autoSync, setAutoSync] = useState(() => isAutoSyncEnabled());
+  const canPush = can(crewRole, "sync.push");
+  const canAdmin = can(crewRole, "admin.settings");
+  const canEdit = can(crewRole, "drawing.edit");
 
-  async function onPull() {
+  async function onPull(forceReplace = false) {
     setBusy("pull");
     try {
-      const pkg = await syncPull();
-      if (!pkg) {
+      if (isLocalDirty() && !forceReplace) {
+        const ok = window.confirm(
+          "This station has changes not yet on the cloud. Pull will replace local data with the cloud copy. Continue?",
+        );
+        if (!ok) return;
+      }
+      const res = await syncPull();
+      if (!res.package) {
         toast.message("No cloud workspace yet — push this device first.");
       } else {
-        importPackage(pkg, "replace");
-        setRev(getLocalRevision());
+        importPackage(res.package, "replace");
+        setLocalRevision(res.revision);
+        setRev(res.revision);
+        await rememberAllRemoteSheets();
         toast.success(
-          `Pulled ${pkg.projects.length} job(s), ${pkg.drawings.length} sheets (rev ${getLocalRevision()})`,
+          `Pulled ${res.package.projects.length} job(s), ${res.package.drawings.length} sheets (rev ${res.revision})`,
         );
       }
     } catch (e) {
@@ -65,12 +81,17 @@ function SettingsPage() {
     }
   }
 
-  async function onPush() {
-    setBusy("push");
+  async function onPush(force = false) {
+    setBusy(force ? "force" : "push");
     try {
-      const n = await syncPush(exportPackage());
-      setRev(n);
-      toast.success(`Pushed workspace revision ${n}`);
+      const result = await syncPush(exportPackage(), {
+        force,
+        crewRole,
+      });
+      setRev(result.revision);
+      if (result.accepted) {
+        toast.success(`Pushed workspace revision ${result.revision}`);
+      }
     } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Push failed — sign in if required",
@@ -82,6 +103,10 @@ function SettingsPage() {
 
   async function onCsv(file: File | null) {
     if (!file || !project) return;
+    if (!canEdit) {
+      toast.error("Your station role cannot import CSV");
+      return;
+    }
     setBusy("csv");
     try {
       const text = await file.text();
@@ -118,12 +143,15 @@ function SettingsPage() {
         <section className="panel space-y-3 p-5">
           <h2 className="text-sm font-semibold">Company & crew role</h2>
           <p className="text-sm text-[var(--color-muted)]">
-            Soft RBAC for this station. GC view is read-mostly; Admin/PM unlock
-            job create and reset. Role is stored on this device.
+            Soft RBAC for this station. GC view is read-only for mutations.
+            Role is stored on this device (and in cloud package when you push).
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             <div>
-              <label htmlFor="org-name" className="mb-1 block text-[11px] uppercase tracking-wider text-[var(--color-subtle)]">
+              <label
+                htmlFor="org-name"
+                className="mb-1 block text-[11px] uppercase tracking-wider text-[var(--color-subtle)]"
+              >
                 Company / fab name
               </label>
               <Input
@@ -131,11 +159,15 @@ function SettingsPage() {
                 name="orgName"
                 aria-label="Company name"
                 value={orgName}
+                disabled={!canAdmin && !canEdit}
                 onChange={(e) => setOrgProfile({ orgName: e.target.value })}
               />
             </div>
             <div>
-              <label htmlFor="org-rfi-email" className="mb-1 block text-[11px] uppercase tracking-wider text-[var(--color-subtle)]">
+              <label
+                htmlFor="org-rfi-email"
+                className="mb-1 block text-[11px] uppercase tracking-wider text-[var(--color-subtle)]"
+              >
                 Default RFI email
               </label>
               <Input
@@ -145,11 +177,15 @@ function SettingsPage() {
                 aria-label="Default RFI email"
                 placeholder="engineer@example.com"
                 value={orgRfiEmail}
+                disabled={!canAdmin && !canEdit}
                 onChange={(e) => setOrgProfile({ orgRfiEmail: e.target.value })}
               />
             </div>
             <div className="sm:col-span-2">
-              <label htmlFor="crew-role" className="mb-1 block text-[11px] uppercase tracking-wider text-[var(--color-subtle)]">
+              <label
+                htmlFor="crew-role"
+                className="mb-1 block text-[11px] uppercase tracking-wider text-[var(--color-subtle)]"
+              >
                 This station role
               </label>
               <Select
@@ -165,24 +201,34 @@ function SettingsPage() {
                   </option>
                 ))}
               </Select>
+              <p className="mt-1 text-[11px] text-[var(--color-subtle)]">
+                Station role is soft UI control (not server security). Cloud data
+                is still scoped to your signed-in account.
+              </p>
             </div>
           </div>
           {!can(crewRole, "job.create") && (
             <p className="text-xs text-[var(--color-warn)]">
-              Current role cannot create jobs. Switch to PM or Admin for full pilot control.
+              Current role cannot create jobs. Switch to PM or Admin for full
+              pilot control.
             </p>
           )}
         </section>
 
         <section className="panel space-y-3 p-5">
-          <h2 className="text-sm font-semibold">Cloud workspace (PGLite / Postgres)</h2>
+          <h2 className="text-sm font-semibold">
+            Cloud workspace (PGLite / Postgres)
+          </h2>
           <p className="text-sm text-[var(--color-muted)]">
             Push stores the full job package server-side for your signed-in user
-            (or the preview dev user when auth is off). Pull replaces this
-            browser with the cloud copy.
+            (or the preview dev user when auth is off). Stale pushes are rejected
+            — pull first, or use Force push only when you intend to overwrite
+            the cloud.
           </p>
           <div className="text-xs text-[var(--color-subtle)]">
             Local revision: <span className="font-mono-num">{rev}</span>
+            {" · "}
+            Dirty: {isLocalDirty() ? "yes" : "no"}
             {" · "}
             Auth: {authEnabled ? "on" : "off (dev user)"}
             {" · "}
@@ -199,19 +245,26 @@ function SettingsPage() {
               name="autoSync"
               type="checkbox"
               checked={autoSync}
+              disabled={!canPush}
               aria-label="Enable auto-sync push"
               className="size-4 accent-[var(--color-accent)]"
               onChange={(e) => {
                 const on = e.target.checked;
                 setAutoSync(on);
                 setAutoSyncEnabled(on);
-                toast.message(on ? "Auto-sync on (debounced push)" : "Auto-sync off");
+                toast.message(
+                  on ? "Auto-sync on (debounced push)" : "Auto-sync off",
+                );
               }}
             />
             Auto-push after changes (~2.5s debounce)
           </label>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" disabled={!!busy} onClick={() => void onPush()}>
+            <Button
+              size="sm"
+              disabled={!!busy || !canPush}
+              onClick={() => void onPush(false)}
+            >
               {busy === "push" ? (
                 <Loader2 className="size-3.5 animate-spin" />
               ) : (
@@ -223,7 +276,7 @@ function SettingsPage() {
               size="sm"
               variant="outline"
               disabled={!!busy}
-              onClick={() => void onPull()}
+              onClick={() => void onPull(false)}
             >
               {busy === "pull" ? (
                 <Loader2 className="size-3.5 animate-spin" />
@@ -232,17 +285,43 @@ function SettingsPage() {
               )}
               Pull from cloud
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!!busy || !canPush}
+              onClick={() => {
+                const ok = window.confirm(
+                  "Force push overwrites the cloud with this device even if cloud is newer. Continue?",
+                );
+                if (ok) void onPush(true);
+              }}
+            >
+              {busy === "force" ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <CloudUpload className="size-3.5" />
+              )}
+              Force push
+            </Button>
           </div>
         </section>
 
         <section className="panel space-y-3 p-5">
           <h2 className="text-sm font-semibold">CSV piece mark import</h2>
           <p className="text-sm text-[var(--color-muted)]">
-            Columns: <code className="text-[var(--color-fg)]">mark,drawing,title,set,tonnage</code>
+            Columns:{" "}
+            <code className="text-[var(--color-fg)]">
+              mark,drawing,title,set,tonnage
+            </code>
             . Creates shop sheets on the active job when drawing numbers are new.
           </p>
           <label className="inline-flex cursor-pointer">
-            <Button size="sm" variant="secondary" asChild disabled={!!busy}>
+            <Button
+              size="sm"
+              variant="secondary"
+              asChild
+              disabled={!!busy || !canEdit}
+            >
               <span>
                 {busy === "csv" ? (
                   <Loader2 className="size-3.5 animate-spin" />
@@ -257,6 +336,7 @@ function SettingsPage() {
               accept=".csv,text/csv"
               className="sr-only"
               aria-label="Import piece mark CSV"
+              disabled={!canEdit}
               onChange={(e) => {
                 void onCsv(e.target.files?.[0] ?? null);
                 e.target.value = "";

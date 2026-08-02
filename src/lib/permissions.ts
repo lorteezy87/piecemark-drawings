@@ -43,12 +43,7 @@ const ROLE_PERMS: Record<UserRole, Permission[]> = {
     "transmittal.issue",
     "sync.push",
   ],
-  fab: [
-    "drawing.upload",
-    "status.change",
-    "rfi.create",
-    "sync.push",
-  ],
+  fab: ["drawing.upload", "status.change", "rfi.create", "sync.push"],
   field: ["rfi.create", "drawing.upload", "sync.push"],
   pm: [
     "job.create",
@@ -75,4 +70,22 @@ export function roleSummary(role: UserRole): string {
   if (n === 0) return "View-only";
   if (n >= ALL.length) return "Full control";
   return `${n} permissions`;
+}
+
+export function permissionLabel(perm: Permission): string {
+  const map: Record<Permission, string> = {
+    "job.create": "create jobs",
+    "job.reset": "reset demo data",
+    "drawing.edit": "edit drawings",
+    "drawing.upload": "upload sheets",
+    "status.change": "change status",
+    "hold.manage": "manage holds",
+    "rfi.create": "create RFIs",
+    "rfi.answer": "answer RFIs",
+    "submittal.manage": "manage submittals",
+    "transmittal.issue": "issue transmittals",
+    "sync.push": "push to cloud",
+    "admin.settings": "admin settings",
+  };
+  return map[perm] ?? perm;
 }
