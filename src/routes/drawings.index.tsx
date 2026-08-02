@@ -1,9 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Filter, Plus, RotateCcw, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { fileToSheetAsset, SHEET_UPLOAD_ACCEPT } from "@/components/viewer/real-sheet-viewer";
-import { matchDrawingByFileName } from "@/lib/sheet-match";
-import { uploadSheetToServer } from "@/lib/workspace-sync";
+import { SHEET_UPLOAD_ACCEPT } from "@/components/viewer/real-sheet-viewer";
+import { attachSheetsFromFiles } from "@/lib/attach-sheet";
 import { useMemo, useState } from "react";
 import { SetRegister } from "@/components/drawings/set-register";
 import { AppShell } from "@/components/layout/app-shell";
@@ -86,7 +85,7 @@ function DrawingsPage() {
             <Button size="sm" variant="outline" asChild>
               <span>
                 <Upload className="size-3.5" />
-                Bulk PDFs
+                Upload PDFs
               </span>
             </Button>
             <input
@@ -96,39 +95,29 @@ function DrawingsPage() {
               multiple
               accept={SHEET_UPLOAD_ACCEPT}
               className="sr-only"
-              aria-label="Bulk upload PDFs matched by sheet number"
+              aria-label="Upload drawing PDFs"
               onChange={(e) => {
                 void (async () => {
                   const files = e.target.files;
                   if (!files?.length || !project) return;
-                  const pool = allDrawings.filter((d) => d.projectId === project.id);
-                  let n = 0;
-                  const bad: string[] = [];
-                  for (const file of Array.from(files)) {
-                    const hit = matchDrawingByFileName(pool, file.name);
-                    if (!hit) {
-                      bad.push(file.name);
-                      continue;
-                    }
-                    try {
-                      const asset = await fileToSheetAsset(hit.id, file);
-                      setSheetAsset(hit.id, asset);
-                      await uploadSheetToServer({
-                        drawingId: hit.id,
-                        name: file.name,
-                        mime: asset.mime,
-                        blob: file,
-                      });
-                      n += 1;
-                    } catch {
-                      bad.push(file.name);
-                    }
-                  }
-                  if (n) toast.success(`Attached ${n} sheet file(s)`);
-                  if (bad.length)
-                    toast.message(
-                      `Unmatched: ${bad.slice(0, 3).join(", ")} — use names like S-101.pdf`,
+                  const result = await attachSheetsFromFiles({
+                    files: Array.from(files),
+                    projectId: project.id,
+                    createIfMissing: true,
+                  });
+                  if (result.attached) {
+                    toast.success(
+                      `Attached ${result.attached} file(s)` +
+                        (result.created
+                          ? ` · ${result.created} new sheet(s) created`
+                          : ""),
                     );
+                  }
+                  if (result.failed.length) {
+                    toast.message(
+                      `Failed: ${result.failed.slice(0, 3).join(", ")}`,
+                    );
+                  }
                   e.target.value = "";
                 })();
               }}

@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { useAppStore, useSelectedProject } from "@/lib/store";
 import { toast } from "sonner";
-import { matchDrawingByFileName } from "@/lib/sheet-match";
+import { attachSheetsFromFiles } from "@/lib/attach-sheet";
 import { uploadSheetToServer } from "@/lib/workspace-sync";
 import { DRAWING_TYPE_LABELS } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -95,66 +95,72 @@ function ViewerPage() {
   const showRealSheet = !!sheetAsset && !preferGenerated;
 
   async function onUploadSheet(file: File | null) {
-    if (!file || !drawing) return;
+    if (!file || !project) return;
     setUploadError(null);
-    try {
-      const asset = await fileToSheetAsset(drawing.id, file);
-      setSheetAsset(drawing.id, asset);
+    // Prefer currently selected sheet; otherwise auto-match or create a row.
+    if (drawing) {
+      try {
+        const asset = await fileToSheetAsset(drawing.id, file);
+        setSheetAsset(drawing.id, asset);
+        setPreferGenerated(false);
+        setMode("sheet");
+        setSplit(false);
+        const remote = await uploadSheetToServer({
+          drawingId: drawing.id,
+          name: file.name,
+          mime: asset.mime,
+          blob: file,
+        });
+        if (remote.ok) {
+          toast.success(`Attached to ${drawing.number}`);
+        } else {
+          toast.message(`Saved on ${drawing.number} · ${remote.reason}`);
+        }
+      } catch (e) {
+        setUploadError(e instanceof Error ? e.message : "Upload failed");
+      }
+      return;
+    }
+    const result = await attachSheetsFromFiles({
+      files: [file],
+      projectId: project.id,
+      createIfMissing: true,
+    });
+    if (result.attached) {
+      toast.success(
+        result.created
+          ? "Created sheet row and attached file"
+          : "Matched file to a sheet",
+      );
       setPreferGenerated(false);
       setMode("sheet");
-      setSplit(false);
-      const remote = await uploadSheetToServer({
-        drawingId: drawing.id,
-        name: file.name,
-        mime: asset.mime,
-        blob: file,
-      });
-      if (remote.ok) {
-        toast.success("Sheet saved locally + cloud file store");
-      } else {
-        toast.message(remote.reason);
-      }
-    } catch (e) {
-      setUploadError(e instanceof Error ? e.message : "Upload failed");
+    } else if (result.failed.length) {
+      setUploadError(result.failed[0] ?? "Upload failed");
     }
   }
 
   async function onBulkUploadSheets(files: FileList | null) {
     if (!files?.length || !project) return;
     setUploadError(null);
-    let matched = 0;
-    let unmatched: string[] = [];
-    for (const file of Array.from(files)) {
-      const hit = matchDrawingByFileName(projectDrawings, file.name);
-      if (!hit) {
-        unmatched.push(file.name);
-        continue;
-      }
-      try {
-        const asset = await fileToSheetAsset(hit.id, file);
-        setSheetAsset(hit.id, asset);
-        const remote = await uploadSheetToServer({
-          drawingId: hit.id,
-          name: file.name,
-          mime: asset.mime,
-          blob: file,
-        });
-        if (!remote.ok && remote.reason.includes("Unauthorized")) {
-          /* local only */
-        }
-        matched += 1;
-      } catch (e) {
-        unmatched.push(`${file.name} (${e instanceof Error ? e.message : "err"})`);
-      }
-    }
-    if (matched) {
-      toast.success(`Matched ${matched} PDF/image(s) to sheet numbers`);
+    const result = await attachSheetsFromFiles({
+      files: Array.from(files),
+      projectId: project.id,
+      createIfMissing: true,
+    });
+    if (result.attached) {
+      const extra =
+        result.created > 0
+          ? ` (${result.created} new sheet row(s) created)`
+          : "";
+      toast.success(`Attached ${result.attached} file(s)${extra}`);
       setPreferGenerated(false);
       setMode("sheet");
     }
-    if (unmatched.length) {
+    if (result.failed.length) {
       toast.message(
-        `Unmatched: ${unmatched.slice(0, 4).join(", ")}${unmatched.length > 4 ? "…" : ""} — name files like S-101.pdf`,
+        `Could not attach: ${result.failed.slice(0, 3).join(", ")}${
+          result.failed.length > 3 ? "…" : ""
+        }`,
       );
     }
   }
@@ -325,7 +331,7 @@ function ViewerPage() {
                   htmlFor="sheet-bulk-upload"
                   className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-muted)] hover:border-[var(--color-border-strong)] hover:text-[var(--color-fg)]"
                 >
-                  Bulk match PDFs by sheet number
+                  Bulk upload PDFs (auto-match or create sheets)
                   <input
                     id="sheet-bulk-upload"
                     name="sheetBulk"
@@ -333,13 +339,17 @@ function ViewerPage() {
                     multiple
                     accept={SHEET_UPLOAD_ACCEPT}
                     className="sr-only"
-                    aria-label="Bulk upload drawings matched by filename"
+                    aria-label="Bulk upload drawing PDFs"
                     onChange={(e) => {
                       void onBulkUploadSheets(e.target.files);
                       e.target.value = "";
                     }}
                   />
                 </label>
+                <p className="text-[10px] leading-relaxed text-[var(--color-subtle)]">
+                  Any filename works. Names containing a sheet number (E-101, S301,
+                  CD_18) attach to that register row; otherwise a new sheet is created.
+                </p>
                 {sheetAsset && (
                   <div className="space-y-1.5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-2 text-[11px] text-[var(--color-muted)]">
                     <div className="truncate font-medium text-[var(--color-fg)]">
