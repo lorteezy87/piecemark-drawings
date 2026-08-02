@@ -1,15 +1,19 @@
 import { Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
+  Check,
   ChevronDown,
   ChevronRight,
   Layers,
+  Pencil,
   Trash2,
+  X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { DrawingStatusBadge } from "@/components/status-badges";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { can } from "@/lib/permissions";
 import { useAppStore } from "@/lib/store";
 import {
@@ -43,8 +47,30 @@ export function SetRegister({
   const crewRole = useAppStore((s) => s.crewRole);
   const deleteDrawingSet = useAppStore((s) => s.deleteDrawingSet);
   const deleteDrawing = useAppStore((s) => s.deleteDrawing);
+  const updateDrawingSet = useAppStore((s) => s.updateDrawingSet);
+  const canEdit = can(crewRole, "drawing.edit");
   const canDelete =
     can(crewRole, "drawing.edit") || can(crewRole, "job.delete");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editCode, setEditCode] = useState("");
+  const [editName, setEditName] = useState("");
+
+  function startEdit(set: DrawingSet) {
+    setEditingId(set.id);
+    setEditCode(set.code);
+    setEditName(set.name);
+  }
+
+  function saveEdit(setId: string) {
+    const ok = updateDrawingSet(setId, {
+      code: editCode,
+      name: editName,
+    });
+    if (ok) {
+      toast.success("Drawing set updated");
+      setEditingId(null);
+    }
+  }
 
   if (sets.length === 0) {
     return (
@@ -94,7 +120,55 @@ export function SetRegister({
                     <ChevronRight className="size-4" />
                   )}
                 </button>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
+                  {editingId === set.id ? (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Input
+                          id={`set-code-${set.id}`}
+                          name={`setCode-${set.id}`}
+                          aria-label="Set code"
+                          value={editCode}
+                          onChange={(e) => setEditCode(e.target.value)}
+                          className="h-8 w-28 font-mono-num text-sm"
+                          placeholder="SET-SHOP"
+                        />
+                        <Input
+                          id={`set-name-${set.id}`}
+                          name={`setName-${set.id}`}
+                          aria-label="Set name"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="h-8 min-w-[12rem] flex-1 text-sm"
+                          placeholder="Shop drawings"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveEdit(set.id);
+                            if (e.key === "Escape") setEditingId(null);
+                          }}
+                        />
+                        <Button
+                          size="icon-sm"
+                          variant="default"
+                          aria-label="Save set name"
+                          onClick={() => saveEdit(set.id)}
+                        >
+                          <Check className="size-3.5" />
+                        </Button>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label="Cancel rename"
+                          onClick={() => setEditingId(null)}
+                        >
+                          <X className="size-3.5" />
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-[var(--color-subtle)]">
+                        Rename code and title (e.g. SET-SHOP · Level 1 Shop)
+                      </p>
+                    </div>
+                  ) : (
+                    <>
                   <div className="flex flex-wrap items-center gap-2">
                     <Link
                       to="/drawings/sets/$setId"
@@ -118,6 +192,8 @@ export function SetRegister({
                   >
                     {set.name}
                   </Link>
+                    </>
+                  )}
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-[var(--color-muted)]">
                     <span>{DRAWING_TYPE_LABELS[set.type]}</span>
                     <span className="font-mono-num">Set rev {set.currentRev}</span>
@@ -133,6 +209,17 @@ export function SetRegister({
               </div>
 
               <div className="flex shrink-0 flex-wrap items-center gap-2 pl-10 sm:pl-0">
+                {canEdit && editingId !== set.id && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => startEdit(set)}
+                  >
+                    <Pencil className="size-3.5" />
+                    Rename
+                  </Button>
+                )}
                 <Link
                   to="/drawings/sets/$setId"
                   params={{ setId: set.id }}

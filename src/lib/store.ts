@@ -182,6 +182,10 @@ interface AppState {
   }) => string;
   deleteDrawing: (drawingId: string) => boolean;
   deleteDrawingSet: (setId: string) => boolean;
+  updateDrawingSet: (
+    setId: string,
+    patch: { code?: string; name?: string; type?: DrawingType },
+  ) => boolean;
   createDrawing: (input: {
     projectId: string;
     setId: string;
@@ -850,7 +854,48 @@ export const useAppStore = create<AppState>()(
         return id;
       },
 
-      createDrawing: (input) => {
+      
+      updateDrawingSet: (setId, patch) => {
+        if (deny(get().crewRole, "drawing.edit")) return false;
+        const ds = get().drawingSets.find((x) => x.id === setId);
+        if (!ds) return false;
+        const code = patch.code?.trim();
+        const name = patch.name?.trim();
+        if (code !== undefined && !code) {
+          toast.error("Set code is required");
+          return false;
+        }
+        if (name !== undefined && !name) {
+          toast.error("Set name is required");
+          return false;
+        }
+        set((s) => ({
+          drawingSets: s.drawingSets.map((x) =>
+            x.id === setId
+              ? {
+                  ...x,
+                  ...(code !== undefined ? { code } : {}),
+                  ...(name !== undefined ? { name } : {}),
+                  ...(patch.type !== undefined ? { type: patch.type } : {}),
+                }
+              : x,
+          ),
+          activities: pushActivity(
+            s,
+            makeActivity({
+              projectId: ds.projectId,
+              kind: "system",
+              actor: actorName(get()),
+              summary: `Renamed set ${code ?? ds.code}${
+                name && name !== ds.name ? ` → ${name}` : ""
+              }`,
+            }),
+          ),
+        }));
+        return true;
+      },
+
+createDrawing: (input) => {
         if (deny(get().crewRole, "drawing.edit")) return "";
         const id = newId("dwg");
         const sheets = get().drawings.filter((d) => d.setId === input.setId);

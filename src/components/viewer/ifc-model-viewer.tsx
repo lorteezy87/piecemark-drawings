@@ -172,7 +172,7 @@ export function IfcModelViewer({
     // Complete stop on release — no inertia / coasting
     controls.enableDamping = false;
     controls.dampingFactor = 0;
-    controls.rotateSpeed = -0.7;
+    controls.rotateSpeed = 0.7; // natural: drag right → look/orbit right
     controls.panSpeed = 0.85;
     // Unlimited, responsive dolly — prevents scroll from "running out of gas"
     controls.zoomSpeed = 1.4;
