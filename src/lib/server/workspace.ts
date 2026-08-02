@@ -138,13 +138,17 @@ export const saveDrawingFile = createServerFn({ method: "POST" })
       mime?: string;
       contentB64?: string;
       kind?: string;
+      partIndex?: number;
+      partTotal?: number;
     };
     if (!o.id || !o.name || !o.mime || !o.contentB64) {
       throw new Error("id, name, mime, contentB64 required");
     }
-    // Cap ~8MB base64 (~6MB binary) for DB storage without object store
+    // Cap ~8MB base64 per part (~6MB binary). Multi-part up to ~28MB total client-side.
     if (o.contentB64.length > 11_000_000) {
-      throw new Error("File too large for server store (max ~6MB). Use local IDB only.");
+      throw new Error(
+        "File part too large for server store (max ~6MB per part).",
+      );
     }
     return {
       id: o.id,
@@ -153,20 +157,25 @@ export const saveDrawingFile = createServerFn({ method: "POST" })
       mime: o.mime,
       contentB64: o.contentB64,
       kind: o.kind ?? "sheet",
+      partIndex: typeof o.partIndex === "number" ? o.partIndex : 0,
+      partTotal: typeof o.partTotal === "number" ? o.partTotal : 1,
     };
   })
   .handler(async ({ data, context }) => {
     const sql = await getSql();
     const size = Math.floor((data.contentB64.length * 3) / 4);
     await sql.query(
-      `INSERT INTO pm_file (id, user_id, drawing_id, kind, name, mime, size_bytes, content_b64, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+      `INSERT INTO pm_file (id, user_id, drawing_id, kind, name, mime, size_bytes, content_b64, created_at, part_index, part_total)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), $9, $10)
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name,
          mime = EXCLUDED.mime,
          size_bytes = EXCLUDED.size_bytes,
          content_b64 = EXCLUDED.content_b64,
-         drawing_id = EXCLUDED.drawing_id
+         drawing_id = EXCLUDED.drawing_id,
+         kind = EXCLUDED.kind,
+         part_index = EXCLUDED.part_index,
+         part_total = EXCLUDED.part_total
        WHERE pm_file.user_id = $2`,
       [
         data.id,
@@ -177,9 +186,11 @@ export const saveDrawingFile = createServerFn({ method: "POST" })
         data.mime,
         size,
         data.contentB64,
+        data.partIndex,
+        data.partTotal,
       ],
     );
-    return { ok: true as const, size };
+    return { ok: true as const, size, partIndex: data.partIndex, partTotal: data.partTotal };
   });
 
 export const listDrawingFiles = createServerFn({ method: "GET" })
@@ -221,8 +232,12 @@ export const getDrawingFile = createServerFn({ method: "GET" })
       name: string;
       mime: string;
       content_b64: string | null;
+      part_index: number | null;
+      part_total: number | null;
+      kind: string | null;
     }>(
-      `SELECT id, drawing_id, name, mime, content_b64 FROM pm_file
+      `SELECT id, drawing_id, name, mime, content_b64, part_index, part_total, kind
+       FROM pm_file
        WHERE id = $1 AND user_id = $2`,
       [data.id, context.userId],
     );

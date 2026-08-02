@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import type { JobPackage } from "@/lib/job-package";
 import { can } from "@/lib/permissions";
+import { raiseSyncConflict } from "@/lib/sync-conflict-store";
 import type { UserRole } from "@/lib/types";
 import {
   getDrawingFile,
@@ -14,6 +15,11 @@ const REV_KEY = "piecemark-workspace-revision";
 const AUTO_KEY = "piecemark-auto-sync";
 const SERVER_SHEETS_KEY = "piecemark-server-sheets";
 const DIRTY_KEY = "piecemark-local-dirty";
+
+/** Max single-part binary size (~6MB). Larger files use multi-part chunks. */
+export const SERVER_FILE_PART_BYTES = 5.5 * 1024 * 1024;
+/** Max total binary for chunked cloud store without external object storage. */
+export const SERVER_FILE_MAX_BYTES = 28 * 1024 * 1024;
 
 export function getLocalRevision(): number {
   try {
@@ -51,7 +57,6 @@ export function setLocalDirty(dirty: boolean) {
 export function isAutoSyncEnabled(): boolean {
   try {
     const v = localStorage.getItem(AUTO_KEY);
-    // default ON for production pilot
     if (v === null) return true;
     return v === "1" || v === "true";
   } catch {
@@ -72,20 +77,26 @@ export async function syncPull(): Promise<{
   revision: number;
   updatedAt: string | null;
 }> {
-  const res = await pullWorkspace();
-  return res;
+  return pullWorkspace();
 }
 
 export type SyncPushOpts = {
   silent?: boolean;
   force?: boolean;
   crewRole?: UserRole;
+  /** When true, open multi-device conflict dialog on reject */
+  raiseUi?: boolean;
 };
 
 export async function syncPush(
   pkg: JobPackage,
   opts?: SyncPushOpts,
-): Promise<{ revision: number; accepted: boolean; conflict: boolean }> {
+): Promise<{
+  revision: number;
+  accepted: boolean;
+  conflict: boolean;
+  remotePackage?: JobPackage | null;
+}> {
   if (opts?.crewRole && !can(opts.crewRole, "sync.push")) {
     if (!opts.silent) toast.error("Your station role cannot push to cloud");
     return { revision: getLocalRevision(), accepted: false, conflict: false };
@@ -100,15 +111,24 @@ export async function syncPush(
   });
 
   if (!res.accepted) {
-    if (!opts?.silent) {
+    if (opts?.raiseUi !== false) {
+      raiseSyncConflict({
+        reason: "stale_push",
+        localRevision: base,
+        remoteRevision: res.revision,
+        remotePackage: res.package ?? null,
+        pendingLocalPackage: pkg,
+      });
+    } else if (!opts?.silent) {
       toast.error(
-        `Cloud is at rev ${res.revision} (this device ${base}). Pull first, or Force push from Settings.`,
+        `Cloud is at rev ${res.revision} (this device ${base}). Open Settings to resolve.`,
       );
     }
     return {
       revision: res.revision,
       accepted: false,
       conflict: true,
+      remotePackage: res.package ?? null,
     };
   }
 
@@ -124,7 +144,6 @@ export async function syncPush(
   };
 }
 
-/** Debounced auto-push controller (module singleton). */
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let lastPushErrorAt = 0;
 let pushInFlight = false;
@@ -141,17 +160,21 @@ export function scheduleAutoPush(
   pushTimer = setTimeout(() => {
     pushTimer = null;
     if (pushInFlight) {
-      // re-schedule after in-flight push
       scheduleAutoPush(getPackage, opts);
       return;
     }
     void (async () => {
       pushInFlight = true;
       try {
-        await syncPush(getPackage(), {
+        const pkg = getPackage();
+        const res = await syncPush(pkg, {
           silent: true,
           crewRole: opts?.crewRole,
+          raiseUi: true,
         });
+        if (!res.accepted && res.conflict) {
+          // dialog raised by syncPush
+        }
       } catch (e) {
         const now = Date.now();
         if (now - lastPushErrorAt > 60_000) {
@@ -171,12 +194,10 @@ export function scheduleAutoPush(
 }
 
 /**
- * One-shot: if cloud is newer and local isn't dirty, pull automatically.
- * Returns package when caller should importPackage(pkg, "replace").
+ * One-shot auto-pull. Opens conflict UI when local is dirty and remote is newer.
+ * Returns package when caller should importPackage(pkg, "replace") silently.
  */
-export async function maybeAutoPull(opts?: {
-  forceConfirmDirty?: boolean;
-}): Promise<JobPackage | null> {
+export async function maybeAutoPull(): Promise<JobPackage | null> {
   if (pullOnceDone) return null;
   pullOnceDone = true;
   try {
@@ -184,10 +205,14 @@ export async function maybeAutoPull(opts?: {
     if (!remote.package) return null;
     const local = getLocalRevision();
     if (remote.revision <= local) return null;
-    if (isLocalDirty() && !opts?.forceConfirmDirty) {
-      toast.message(
-        `Cloud rev ${remote.revision} is newer. Pull from Settings when ready (local has unsaved changes).`,
-      );
+    if (isLocalDirty()) {
+      raiseSyncConflict({
+        reason: "dirty_remote",
+        localRevision: local,
+        remoteRevision: remote.revision,
+        remoteUpdatedAt: remote.updatedAt,
+        remotePackage: remote.package,
+      });
       return null;
     }
     setLocalRevision(remote.revision);
@@ -195,14 +220,28 @@ export async function maybeAutoPull(opts?: {
     toast.success(`Synced cloud workspace (rev ${remote.revision})`);
     return remote.package;
   } catch {
-    // signed out / offline — ignore
     return null;
   }
 }
 
-/** Reset pull-once guard (e.g. after sign-in). */
 export function resetAutoPullGuard() {
   pullOnceDone = false;
+}
+
+function bytesToB64(buf: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < buf.length; i += chunk) {
+    binary += String.fromCharCode(...buf.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function b64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
 }
 
 export async function uploadSheetToServer(opts: {
@@ -210,34 +249,40 @@ export async function uploadSheetToServer(opts: {
   name: string;
   mime: string;
   blob: Blob;
-}): Promise<{ ok: true; size: number } | { ok: false; reason: string }> {
+}): Promise<{ ok: true; size: number; parts: number } | { ok: false; reason: string }> {
   try {
-    if (opts.blob.size > 6 * 1024 * 1024) {
+    if (opts.blob.size > SERVER_FILE_MAX_BYTES) {
       return {
         ok: false,
-        reason:
-          "File > 6MB kept local only (IndexedDB). Cloud package still syncs metadata.",
+        reason: `File > ${Math.round(SERVER_FILE_MAX_BYTES / (1024 * 1024))}MB kept local only (IndexedDB). Metadata still syncs.`,
       };
     }
     const buf = new Uint8Array(await opts.blob.arrayBuffer());
-    let binary = "";
-    const chunk = 0x8000;
-    for (let i = 0; i < buf.length; i += chunk) {
-      binary += String.fromCharCode(...buf.subarray(i, i + chunk));
+    const partSize = Math.floor(SERVER_FILE_PART_BYTES);
+    const parts = Math.max(1, Math.ceil(buf.length / partSize));
+
+    for (let i = 0; i < parts; i++) {
+      const slice = buf.subarray(i * partSize, Math.min(buf.length, (i + 1) * partSize));
+      const contentB64 = bytesToB64(slice);
+      const id =
+        i === 0 ? `file-${opts.drawingId}` : `file-${opts.drawingId}-p${i}`;
+      await saveDrawingFile({
+        data: {
+          id,
+          drawingId: opts.drawingId,
+          name: opts.name,
+          mime: opts.mime,
+          contentB64,
+          kind: i === 0 ? "sheet" : "sheet_part",
+          partIndex: i,
+          partTotal: parts,
+        },
+      });
     }
-    const contentB64 = btoa(binary);
-    const res = await saveDrawingFile({
-      data: {
-        id: `file-${opts.drawingId}`,
-        drawingId: opts.drawingId,
-        name: opts.name,
-        mime: opts.mime,
-        contentB64,
-        kind: "sheet",
-      },
-    });
+    // Drop leftover parts if file shrank
+    // (best-effort: list and delete is optional; orphan parts harmless)
     rememberServerSheet(opts.drawingId);
-    return { ok: true, size: res.size };
+    return { ok: true, size: buf.length, parts };
   } catch (e) {
     return {
       ok: false,
@@ -270,13 +315,34 @@ export async function downloadSheetFromServer(
   drawingId: string,
 ): Promise<{ name: string; mime: string; blob: Blob } | null> {
   try {
-    const row = await getDrawingFile({ data: { id: `file-${drawingId}` } });
-    if (!row?.content_b64) return null;
-    const bin = atob(row.content_b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const blob = new Blob([bytes], { type: row.mime || "application/pdf" });
-    return { name: row.name, mime: row.mime, blob };
+    const head = await getDrawingFile({ data: { id: `file-${drawingId}` } });
+    if (!head?.content_b64) return null;
+
+    const partTotal =
+      typeof head.part_total === "number" && head.part_total > 1
+        ? head.part_total
+        : 1;
+
+    const chunks: Uint8Array[] = [b64ToBytes(head.content_b64)];
+    for (let i = 1; i < partTotal; i++) {
+      const part = await getDrawingFile({
+        data: { id: `file-${drawingId}-p${i}` },
+      });
+      if (!part?.content_b64) break;
+      chunks.push(b64ToBytes(part.content_b64));
+    }
+
+    const total = chunks.reduce((n, c) => n + c.length, 0);
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const c of chunks) {
+      merged.set(c, offset);
+      offset += c.length;
+    }
+    const blob = new Blob([merged], {
+      type: head.mime || "application/pdf",
+    });
+    return { name: head.name, mime: head.mime, blob };
   } catch {
     return null;
   }
@@ -290,12 +356,13 @@ export async function listRemoteSheets() {
   }
 }
 
-/** After pull: mark all remote sheet files as known for hydrate. */
 export async function rememberAllRemoteSheets() {
   try {
     const rows = await listDrawingFiles();
     for (const r of rows) {
-      if (r.drawing_id) rememberServerSheet(r.drawing_id);
+      if (r.drawing_id && (r.kind === "sheet" || !r.kind)) {
+        rememberServerSheet(r.drawing_id);
+      }
     }
   } catch {
     /* ignore */

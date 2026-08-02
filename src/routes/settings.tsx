@@ -12,6 +12,7 @@ import { parsePieceCsv } from "@/lib/import/csv-pieces";
 import { can, roleSummary } from "@/lib/permissions";
 import { USER_ROLE_LABELS, type UserRole } from "@/lib/types";
 import { useAppStore } from "@/lib/store";
+import { raiseSyncConflict } from "@/lib/sync-conflict-store";
 import {
   getLocalRevision,
   isAutoSyncEnabled,
@@ -54,24 +55,28 @@ function SettingsPage() {
   async function onPull(forceReplace = false) {
     setBusy("pull");
     try {
-      if (isLocalDirty() && !forceReplace) {
-        const ok = window.confirm(
-          "This station has changes not yet on the cloud. Pull will replace local data with the cloud copy. Continue?",
-        );
-        if (!ok) return;
-      }
       const res = await syncPull();
       if (!res.package) {
         toast.message("No cloud workspace yet — push this device first.");
-      } else {
-        importPackage(res.package, "replace");
-        setLocalRevision(res.revision);
-        setRev(res.revision);
-        await rememberAllRemoteSheets();
-        toast.success(
-          `Pulled ${res.package.projects.length} job(s), ${res.package.drawings.length} sheets (rev ${res.revision})`,
-        );
+        return;
       }
+      if (isLocalDirty() && !forceReplace) {
+        raiseSyncConflict({
+          reason: "dirty_remote",
+          localRevision: getLocalRevision(),
+          remoteRevision: res.revision,
+          remoteUpdatedAt: res.updatedAt,
+          remotePackage: res.package,
+        });
+        return;
+      }
+      importPackage(res.package, "replace");
+      setLocalRevision(res.revision);
+      setRev(res.revision);
+      await rememberAllRemoteSheets();
+      toast.success(
+        `Pulled ${res.package.projects.length} job(s), ${res.package.drawings.length} sheets (rev ${res.revision})`,
+      );
     } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Pull failed — sign in if required",
@@ -87,6 +92,7 @@ function SettingsPage() {
       const result = await syncPush(exportPackage(), {
         force,
         crewRole,
+        raiseUi: !force,
       });
       setRev(result.revision);
       if (result.accepted) {
@@ -343,6 +349,17 @@ function SettingsPage() {
               }}
             />
           </label>
+        </section>
+
+        <section className="panel space-y-2 p-5 text-sm text-[var(--color-muted)]">
+          <h2 className="text-sm font-semibold text-[var(--color-fg)]">
+            Cloud file size
+          </h2>
+          <p>
+            Sheets upload to the cloud in multi-part chunks up to ~28MB. Larger
+            PDFs/IFCs stay on this device (IndexedDB) with metadata still
+            syncing in the job package.
+          </p>
         </section>
 
         <section className="panel space-y-2 p-5 text-sm text-[var(--color-muted)]">

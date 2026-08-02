@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAutoSync } from "@/hooks/use-auto-sync";
+import { SyncConflictDialog } from "@/components/sync/sync-conflict-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -143,6 +144,8 @@ export function AppShell({
   );
 
   return (
+    <>
+      <SyncConflictDialog />
     <div className="min-h-dvh bg-[var(--color-bg)] text-[var(--color-fg)]">
       <div className="flex min-h-dvh">
         <aside className="hidden w-64 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-bg-elevated)] lg:flex">
@@ -345,5 +348,6 @@ export function AppShell({
         </div>
       )}
     </div>
+    </>
   );
 }
