@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Filter, RotateCcw } from "lucide-react";
-import { useMemo } from "react";
+import { Filter, Plus, RotateCcw, Upload } from "lucide-react";
+import { toast } from "sonner";
+import { fileToSheetAsset, SHEET_UPLOAD_ACCEPT } from "@/components/viewer/real-sheet-viewer";
+import { matchDrawingByFileName } from "@/lib/sheet-match";
+import { uploadSheetToServer } from "@/lib/workspace-sync";
+import { useMemo, useState } from "react";
 import { SetRegister } from "@/components/drawings/set-register";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
@@ -30,6 +34,14 @@ function DrawingsPage() {
   const filters = useAppStore((s) => s.filters);
   const setFilters = useAppStore((s) => s.setFilters);
   const resetFilters = useAppStore((s) => s.resetFilters);
+  const createDrawingSet = useAppStore((s) => s.createDrawingSet);
+  const createDrawing = useAppStore((s) => s.createDrawing);
+  const setSheetAsset = useAppStore((s) => s.setSheetAsset);
+  const allDrawings = useAppStore((s) => s.drawings);
+  const [showAdd, setShowAdd] = useState(false);
+  const [sheetNo, setSheetNo] = useState("");
+  const [sheetTitle, setSheetTitle] = useState("");
+  const [setCode, setSetCode] = useState("SET-SHOP");
 
   const projectSeqs = useMemo(
     () =>
@@ -64,6 +76,66 @@ function DrawingsPage() {
   return (
     <AppShell
       title="Drawing Sets"
+      actions={
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={() => setShowAdd((v) => !v)}>
+            <Plus className="size-3.5" />
+            Add sheet
+          </Button>
+          <label className="inline-flex">
+            <Button size="sm" variant="outline" asChild>
+              <span>
+                <Upload className="size-3.5" />
+                Bulk PDFs
+              </span>
+            </Button>
+            <input
+              id="register-bulk-pdf"
+              name="bulkPdfs"
+              type="file"
+              multiple
+              accept={SHEET_UPLOAD_ACCEPT}
+              className="sr-only"
+              aria-label="Bulk upload PDFs matched by sheet number"
+              onChange={(e) => {
+                void (async () => {
+                  const files = e.target.files;
+                  if (!files?.length || !project) return;
+                  const pool = allDrawings.filter((d) => d.projectId === project.id);
+                  let n = 0;
+                  const bad: string[] = [];
+                  for (const file of Array.from(files)) {
+                    const hit = matchDrawingByFileName(pool, file.name);
+                    if (!hit) {
+                      bad.push(file.name);
+                      continue;
+                    }
+                    try {
+                      const asset = await fileToSheetAsset(hit.id, file);
+                      setSheetAsset(hit.id, asset);
+                      await uploadSheetToServer({
+                        drawingId: hit.id,
+                        name: file.name,
+                        mime: asset.mime,
+                        blob: file,
+                      });
+                      n += 1;
+                    } catch {
+                      bad.push(file.name);
+                    }
+                  }
+                  if (n) toast.success(`Attached ${n} sheet file(s)`);
+                  if (bad.length)
+                    toast.message(
+                      `Unmatched: ${bad.slice(0, 3).join(", ")} — use names like S-101.pdf`,
+                    );
+                  e.target.value = "";
+                })();
+              }}
+            />
+          </label>
+        </div>
+      }
       subtitle={
         project
           ? `${project.jobNumber} · ${filteredSets.length} of ${counts.sets} sets · ${counts.sheets} sheets`
@@ -71,6 +143,65 @@ function DrawingsPage() {
       }
     >
       <div className="space-y-4">
+        {showAdd && project && (
+          <div className="panel space-y-3 p-4">
+            <h3 className="text-sm font-semibold">New sheet on {project.jobNumber}</h3>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Input
+                aria-label="Set code"
+                placeholder="Set code (e.g. SET-AB-01)"
+                value={setCode}
+                onChange={(e) => setSetCode(e.target.value)}
+              />
+              <Input
+                aria-label="Sheet number"
+                placeholder="Sheet number (e.g. S-401)"
+                value={sheetNo}
+                onChange={(e) => setSheetNo(e.target.value)}
+              />
+              <Input
+                aria-label="Sheet title"
+                placeholder="Title"
+                value={sheetTitle}
+                onChange={(e) => setSheetTitle(e.target.value)}
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (!sheetNo.trim() || !sheetTitle.trim()) {
+                  toast.error("Number and title required");
+                  return;
+                }
+                let setId = projectSets.find(
+                  (s) => s.code.toLowerCase() === setCode.trim().toLowerCase(),
+                )?.id;
+                if (!setId) {
+                  setId = createDrawingSet({
+                    projectId: project.id,
+                    code: setCode.trim() || "SET-NEW",
+                    name: setCode.trim() || "New set",
+                    type: "shop",
+                  });
+                }
+                createDrawing({
+                  projectId: project.id,
+                  setId,
+                  number: sheetNo.trim(),
+                  title: sheetTitle.trim(),
+                  type: "shop",
+                });
+                toast.success(`Added ${sheetNo.trim()}`);
+                setShowAdd(false);
+                setSheetNo("");
+                setSheetTitle("");
+              }}
+            >
+              Create sheet
+            </Button>
+          </div>
+        )}
+
         <p className="max-w-3xl text-sm text-[var(--color-muted)]">
           Track work by <span className="text-[var(--color-fg)]">named drawing set</span>{" "}
           (the parent package). Expand a set to see its child sheets, or open the set
@@ -114,7 +245,7 @@ function DrawingsPage() {
               <label className="mb-1.5 block text-xs text-[var(--color-muted)]">
                 Search set, sheet, or piece mark
               </label>
-              <Input
+              <Input aria-label="e.g. SET-L34, BR-3, E-101"
                 value={filters.query}
                 onChange={(e) => setFilters({ query: e.target.value })}
                 placeholder="e.g. SET-L34, BR-3, E-101"
@@ -124,7 +255,7 @@ function DrawingsPage() {
               <label className="mb-1.5 block text-xs text-[var(--color-muted)]">
                 Drawing set
               </label>
-              <Select
+              <Select aria-label="Select field"
                 value={filters.setId}
                 onChange={(e) => setFilters({ setId: e.target.value })}
               >
@@ -143,7 +274,7 @@ function DrawingsPage() {
               <label className="mb-1.5 block text-xs text-[var(--color-muted)]">
                 Type
               </label>
-              <Select
+              <Select aria-label="Select field"
                 value={filters.type}
                 onChange={(e) =>
                   setFilters({ type: e.target.value as DrawingType | "all" })
@@ -161,7 +292,7 @@ function DrawingsPage() {
               <label className="mb-1.5 block text-xs text-[var(--color-muted)]">
                 Status
               </label>
-              <Select
+              <Select aria-label="Select field"
                 value={filters.status}
                 onChange={(e) =>
                   setFilters({
@@ -184,7 +315,7 @@ function DrawingsPage() {
               <label className="mb-1.5 block text-xs text-[var(--color-muted)]">
                 Sequence
               </label>
-              <Select
+              <Select aria-label="Select field"
                 value={filters.sequenceId}
                 onChange={(e) => setFilters({ sequenceId: e.target.value })}
               >

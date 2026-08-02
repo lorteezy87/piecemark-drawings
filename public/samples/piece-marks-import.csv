@@ -1,0 +1,6 @@
+mark,drawing,title,set,tonnage
+C1,S-101,Column schedule,SET-SHOP,1.2
+C2,S-101,Column schedule,SET-SHOP,1.1
+B1,S-201,Beam framing,SET-SHOP,0.8
+B2,S-201,Beam framing,SET-SHOP,0.9
+VB1,E-101,Erection plan L1,SET-ERECT,0.4

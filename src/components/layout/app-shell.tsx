@@ -1,20 +1,34 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
+  Box,
   Building2,
   ClipboardList,
+  Factory,
   FileStack,
+  HardHat,
+  Hash,
   LayoutDashboard,
   Menu,
   MessageSquareWarning,
+  OctagonAlert,
   Route as RouteIcon,
   Search,
+  Send,
+  Settings,
+  ShieldCheck,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAutoSync } from "@/hooks/use-auto-sync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { idbGetFile, idbPutFile, sheetAssetKey } from "@/lib/idb-files";
+import { downloadSheetFromServer } from "@/lib/workspace-sync";
 import { useAppStore } from "@/lib/store";
+import { authEnabled } from "@/lib/auth/client";
+import { UserButton } from "@/lib/auth/gates";
+import { USER_ROLE_LABELS } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const nav: {
@@ -25,10 +39,18 @@ const nav: {
 }[] = [
   { to: "/", label: "Command Center", icon: LayoutDashboard, exact: true },
   { to: "/drawings", label: "Drawing Sets", icon: FileStack },
+  { to: "/viewer", label: "Sheet / IFC Viewer", icon: Box },
+  { to: "/ids", label: "IDS Validation", icon: ShieldCheck },
+  { to: "/pieces", label: "Piece Marks", icon: Hash },
+  { to: "/shop", label: "Shop Package", icon: Factory },
+  { to: "/field", label: "Field Package", icon: HardHat },
   { to: "/sequences", label: "Erection Sequences", icon: RouteIcon },
+  { to: "/transmittals", label: "Transmittals", icon: Send },
   { to: "/submittals", label: "Submittals", icon: ClipboardList },
   { to: "/rfis", label: "RFI Log", icon: MessageSquareWarning },
+  { to: "/holds", label: "Holds & Blockers", icon: OctagonAlert },
   { to: "/projects", label: "Jobs", icon: Building2 },
+  { to: "/settings", label: "Settings & Sync", icon: Settings },
 ];
 
 export function AppShell({
@@ -43,13 +65,55 @@ export function AppShell({
   actions?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  useAutoSync();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const projects = useAppStore((s) => s.projects);
+  const crewRole = useAppStore((s) => s.crewRole);
+  const orgName = useAppStore((s) => s.orgName);
   const selectedProjectId = useAppStore((s) => s.selectedProjectId);
   const setSelectedProjectId = useAppStore((s) => s.setSelectedProjectId);
+  const drawings = useAppStore((s) => s.drawings);
+  const sheetAssets = useAppStore((s) => s.sheetAssets);
+  const setSheetAsset = useAppStore((s) => s.setSheetAsset);
+
+  // Restore PDF/image blobs from IndexedDB, then cloud file store
+  const hydrateOnce = useRef(false);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      for (const d of drawings) {
+        if (!d.sheetUploadName || sheetAssets[d.id]) continue;
+        let blob = await idbGetFile(sheetAssetKey(d.id));
+        let name = d.sheetUploadName;
+        let mime = d.sheetUploadMime || "application/pdf";
+        if (!blob) {
+          const remote = await downloadSheetFromServer(d.id);
+          if (remote) {
+            blob = remote.blob;
+            name = remote.name;
+            mime = remote.mime;
+            await idbPutFile(sheetAssetKey(d.id), blob);
+          }
+        }
+        if (!blob || cancelled) continue;
+        const url = URL.createObjectURL(blob);
+        setSheetAsset(d.id, {
+          drawingId: d.id,
+          name,
+          mime: mime || blob.type || "application/pdf",
+          url,
+          size: blob.size,
+          uploadedAt: new Date().toISOString(),
+        });
+      }
+      hydrateOnce.current = true;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [drawings, sheetAssets, setSheetAsset]);
   const setFilters = useAppStore((s) => s.setFilters);
   const filters = useAppStore((s) => s.filters);
-  const drawings = useAppStore((s) => s.drawings);
   const rfis = useAppStore((s) => s.rfis);
 
   const project = projects.find((p) => p.id === selectedProjectId) ?? projects[0];
@@ -82,6 +146,12 @@ export function AppShell({
               <div className="mt-0.5 text-xs text-[var(--color-muted)]">
                 Drawings control
               </div>
+              <div className="mt-2 text-[10px] uppercase tracking-wider text-[var(--color-subtle)]">
+                {orgName || "Company"}
+              </div>
+              <div className="text-[11px] text-[var(--color-muted)]">
+                {USER_ROLE_LABELS[crewRole]}
+              </div>
             </Link>
           </div>
 
@@ -90,6 +160,8 @@ export function AppShell({
               Active job
             </label>
             <Select
+              id="job-select"
+              name="projectId"
               value={project?.id ?? ""}
               onChange={(e) => setSelectedProjectId(e.target.value)}
               aria-label="Select job"
@@ -118,7 +190,19 @@ export function AppShell({
             )}
           </div>
 
-          <nav className="flex-1 space-y-0.5 p-3">
+          <div className="space-y-1 border-b border-[var(--color-border)] px-3 py-2">
+            <UserButton />
+            {authEnabled && (
+              <Link
+                to="/login"
+                className="block text-[11px] text-[var(--color-muted)] underline-offset-2 hover:underline"
+              >
+                Account / sign in
+              </Link>
+            )}
+          </div>
+
+          <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
             {nav.map((item) => {
               const active = item.exact
                 ? pathname === item.to
@@ -230,7 +314,7 @@ export function AppShell({
                 ))}
               </Select>
             </div>
-            <nav className="flex-1 space-y-0.5 p-3">
+            <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
               {nav.map((item) => {
                 const Icon = item.icon;
                 return (

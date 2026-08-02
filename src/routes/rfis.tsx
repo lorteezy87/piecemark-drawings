@@ -1,13 +1,18 @@
+import { buildRfiMailto } from "@/lib/rfi-mailto";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Mail, Plus, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/app-shell";
 import { RfiPriorityBadge, RfiStatusBadge } from "@/components/status-badges";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import {
   DISCIPLINE_LABELS,
   RFI_STATUS_LABELS,
+  type Discipline,
+  type RfiPriority,
   type RfiStatus,
 } from "@/lib/types";
 import { useAppStore, useSelectedProject } from "@/lib/store";
@@ -19,11 +24,31 @@ export const Route = createFileRoute("/rfis")({
 
 function RfisPage() {
   const project = useSelectedProject();
+  const orgRfiEmail = useAppStore((s) => s.orgRfiEmail);
   const rfis = useAppStore((s) => s.rfis);
   const drawings = useAppStore((s) => s.drawings);
   const updateRfiStatus = useAppStore((s) => s.updateRfiStatus);
+  const addRfi = useAppStore((s) => s.addRfi);
   const [statusFilter, setStatusFilter] = useState<RfiStatus | "all">("all");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+
+  // Create form state
+  const [subject, setSubject] = useState("");
+  const [question, setQuestion] = useState("");
+  const [raisedBy, setRaisedBy] = useState("Detailer");
+  const [priority, setPriority] = useState<RfiPriority>("normal");
+  const [discipline, setDiscipline] = useState<Discipline>("structural_steel");
+  const [dueDate, setDueDate] = useState("");
+  const [selectedDwgs, setSelectedDwgs] = useState<string[]>([]);
+
+  const projectDrawings = useMemo(
+    () =>
+      drawings
+        .filter((d) => d.projectId === project?.id)
+        .sort((a, b) => a.number.localeCompare(b.number)),
+    [drawings, project?.id],
+  );
 
   const rows = useMemo(() => {
     return rfis
@@ -37,6 +62,39 @@ function RfisPage() {
       });
   }, [rfis, project?.id, statusFilter]);
 
+  function toggleDwg(id: string) {
+    setSelectedDwgs((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
+  function submitRfi() {
+    if (!project || !subject.trim() || !question.trim()) {
+      toast.error("Subject and question are required");
+      return;
+    }
+    if (selectedDwgs.length === 0) {
+      toast.error("Link at least one drawing");
+      return;
+    }
+    const id = addRfi({
+      projectId: project.id,
+      subject: subject.trim(),
+      question: question.trim(),
+      raisedBy: raisedBy.trim() || "User",
+      priority,
+      discipline,
+      drawingIds: selectedDwgs,
+      dueDate: dueDate || undefined,
+    });
+    toast.success("RFI created");
+    setShowCreate(false);
+    setSubject("");
+    setQuestion("");
+    setSelectedDwgs([]);
+    setExpanded(id);
+  }
+
   return (
     <AppShell
       title="RFI Log"
@@ -45,15 +103,129 @@ function RfisPage() {
           ? `${project.jobNumber} · questions holding detailing, fab, or erection`
           : undefined
       }
+      actions={
+        <Button size="sm" onClick={() => setShowCreate((v) => !v)}>
+          {showCreate ? <X className="size-3.5" /> : <Plus className="size-3.5" />}
+          {showCreate ? "Cancel" : "New RFI"}
+        </Button>
+      }
     >
       <div className="space-y-4">
+        {showCreate && project && (
+          <section className="panel space-y-4 p-5">
+            <div>
+              <h2 className="font-medium">Raise new RFI</h2>
+              <p className="text-xs text-[var(--color-muted)]">
+                Link the sheets (and piece marks) the answer will unlock
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-xs text-[var(--color-muted)]">
+                  Subject
+                </label>
+                <Input aria-label="e.g. HSS brace wall thickness at BR-3"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="e.g. HSS brace wall thickness at BR-3"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-xs text-[var(--color-muted)]">
+                  Question
+                </label>
+                <textarea
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  rows={3}
+                  placeholder="Describe the conflict and options…"
+                  className="w-full resize-y rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs text-[var(--color-muted)]">
+                  Raised by
+                </label>
+                <Input aria-label="Input field" value={raisedBy} onChange={(e) => setRaisedBy(e.target.value)} />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs text-[var(--color-muted)]">
+                  Due date
+                </label>
+                <Input aria-label="Input field"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs text-[var(--color-muted)]">
+                  Priority
+                </label>
+                <Select aria-label="Select field"
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as RfiPriority)}
+                >
+                  <option value="low">Low</option>
+                  <option value="normal">Normal</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </Select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs text-[var(--color-muted)]">
+                  Discipline
+                </label>
+                <Select aria-label="Select field"
+                  value={discipline}
+                  onChange={(e) => setDiscipline(e.target.value as Discipline)}
+                >
+                  {(Object.keys(DISCIPLINE_LABELS) as Discipline[]).map((d) => (
+                    <option key={d} value={d}>
+                      {DISCIPLINE_LABELS[d]}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+            <div>
+              <div className="mb-2 text-xs text-[var(--color-muted)]">
+                Linked drawings ({selectedDwgs.length} selected)
+              </div>
+              <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3">
+                {projectDrawings.map((d) => {
+                  const on = selectedDwgs.includes(d.id);
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => toggleDwg(d.id)}
+                      className={cn(
+                        "rounded-[var(--radius-sm)] border px-2 py-1 font-mono-num text-[11px] transition-colors",
+                        on
+                          ? "border-[var(--color-primary)]/50 bg-[var(--color-primary)]/15 text-[var(--color-fg)]"
+                          : "border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-border-strong)]",
+                      )}
+                    >
+                      {d.number}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={submitRfi}>Create RFI</Button>
+            </div>
+          </section>
+        )}
+
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="max-w-2xl text-sm text-[var(--color-muted)]">
             RFIs are linked to drawings and piece marks so the shop and field know
             exactly which sheets are blocked — critical for connection holds and
             sequence releases.
           </p>
-          <Select
+          <Select aria-label="Select field"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as RfiStatus | "all")}
             className="w-40"
@@ -75,6 +247,7 @@ function RfisPage() {
           )}
           {rows.map((rfi) => {
             const linked = drawings.filter((d) => rfi.drawingIds.includes(d.id));
+            const heldLinked = linked.filter((d) => d.status === "on_hold");
             const due = daysUntil(rfi.dueDate);
             const isOpen = expanded === rfi.id;
             const overdue = rfi.status === "open" && due != null && due < 0;
@@ -170,14 +343,37 @@ function RfisPage() {
                             params={{ drawingId: d.id }}
                             className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 py-2 text-xs hover:border-[var(--color-border-strong)]"
                           >
-                            <span className="font-mono-num font-medium">{d.number}</span>
+                            <span className="font-mono-num font-medium">
+                              {d.number}
+                            </span>
                             <span className="mt-0.5 block max-w-[180px] truncate text-[var(--color-muted)]">
                               {d.title}
+                              {d.status === "on_hold" ? " · ON HOLD" : ""}
                             </span>
                           </Link>
                         ))}
                       </div>
                     </div>
+                    {project && (
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" asChild>
+                          <a
+                            href={buildRfiMailto({
+                              rfi,
+                              project,
+                              to: orgRfiEmail || undefined,
+                              drawings: linked.map((d) => ({
+                                number: d.number,
+                                title: d.title,
+                              })),
+                            })}
+                          >
+                            <Mail className="size-3.5" />
+                            Email RFI
+                          </a>
+                        </Button>
+                      </div>
+                    )}
                     {rfi.status === "open" && (
                       <div className="flex flex-wrap gap-2">
                         <Button
@@ -194,6 +390,59 @@ function RfisPage() {
                         >
                           Mark answered
                         </Button>
+                        {heldLinked.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                              updateRfiStatus(
+                                rfi.id,
+                                "answered",
+                                rfi.answer ??
+                                  "Answer recorded. Linked sheet holds released for fab.",
+                                {
+                                  releaseLinkedHolds: true,
+                                  releaseToStatus: "issued_for_fab",
+                                },
+                              );
+                              toast.success(
+                                `${rfi.number} answered · ${heldLinked.length} hold(s) released to fab`,
+                              );
+                            }}
+                          >
+                            Answer & release holds
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            updateRfiStatus(rfi.id, "closed");
+                            toast.success(`${rfi.number} closed`);
+                          }}
+                        >
+                          Close RFI
+                        </Button>
+                      </div>
+                    )}
+                    {rfi.status === "answered" && (
+                      <div className="flex flex-wrap gap-2">
+                        {heldLinked.length > 0 && (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              updateRfiStatus(rfi.id, "closed", undefined, {
+                                releaseLinkedHolds: true,
+                                releaseToStatus: "issued_for_fab",
+                              });
+                              toast.success(
+                                `${rfi.number} closed · holds released`,
+                              );
+                            }}
+                          >
+                            Close & release holds
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="secondary"
@@ -205,18 +454,6 @@ function RfisPage() {
                           Close RFI
                         </Button>
                       </div>
-                    )}
-                    {rfi.status === "answered" && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          updateRfiStatus(rfi.id, "closed");
-                          toast.success(`${rfi.number} closed`);
-                        }}
-                      >
-                        Close RFI
-                      </Button>
                     )}
                   </div>
                 )}

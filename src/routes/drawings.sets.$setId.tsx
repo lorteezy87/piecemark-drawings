@@ -242,7 +242,7 @@ function DrawingSetDetailPage() {
                 Package-level status for the named set (sheets keep their own status)
               </p>
               <div className="mt-3 space-y-2">
-                <Select
+                <Select aria-label="Select field"
                   value={status}
                   onChange={(e) => setStatus(e.target.value as DrawingStatus)}
                 >

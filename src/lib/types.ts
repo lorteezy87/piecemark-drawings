@@ -155,6 +155,9 @@ export interface Drawing {
   tags: string[];
   /** Sort order within the set */
   sheetIndex: number;
+  /** Original filename when a real PDF/image is attached (session asset in store) */
+  sheetUploadName?: string;
+  sheetUploadMime?: string;
 }
 
 export interface Revision {
@@ -335,3 +338,141 @@ export const STATUS_SEVERITY: Record<DrawingStatus, number> = {
   issued_for_erection: 9,
   superseded: 10,
 };
+
+export type TransmittalKind =
+  | "to_field"
+  | "to_shop"
+  | "to_gc"
+  | "to_eor"
+  | "internal";
+
+export type TransmittalStatus =
+  | "draft"
+  | "issued"
+  | "acknowledged"
+  | "superseded";
+
+export type ActivityKind =
+  | "status"
+  | "revision"
+  | "hold"
+  | "release"
+  | "rfi"
+  | "transmittal"
+  | "submittal"
+  | "markup"
+  | "system";
+
+export interface TransmittalItem {
+  drawingId: string;
+  rev: string;
+}
+
+export interface Transmittal {
+  id: string;
+  projectId: string;
+  number: string;
+  title: string;
+  kind: TransmittalKind;
+  status: TransmittalStatus;
+  issuedDate?: string;
+  issuedBy: string;
+  recipient?: string;
+  sequenceId?: string;
+  setIds?: string[];
+  items: TransmittalItem[];
+  purpose?: string;
+  notes?: string;
+}
+
+export interface ActivityEvent {
+  id: string;
+  projectId: string;
+  at: string;
+  kind: ActivityKind;
+  actor: string;
+  summary: string;
+  detail?: string;
+  drawingId?: string;
+  rfiId?: string;
+  transmittalId?: string;
+  submittalId?: string;
+}
+
+/** Session-only uploaded sheet (PDF / image) bound to a drawing id */
+export interface SheetAsset {
+  drawingId: string;
+  name: string;
+  mime: string;
+  /** Object URL or data URL for viewing */
+  url: string;
+  size: number;
+  uploadedAt: string;
+}
+
+export const TRANSMITTAL_KIND_LABELS: Record<TransmittalKind, string> = {
+  to_field: "To Field",
+  to_shop: "To Shop",
+  to_gc: "To GC",
+  to_eor: "To EOR",
+  internal: "Internal",
+};
+
+export const TRANSMITTAL_STATUS_LABELS: Record<TransmittalStatus, string> = {
+  draft: "Draft",
+  issued: "Issued",
+  acknowledged: "Acknowledged",
+  superseded: "Superseded",
+};
+
+export const SHOP_QUEUE_STATUSES: DrawingStatus[] = [
+  "approved",
+  "aan",
+  "issued_for_fab",
+];
+
+/** Bump A → B → C … AA */
+export function nextRevision(current: string): string {
+  const c = (current || "A").trim().toUpperCase();
+  if (!c) return "A";
+  // numeric revs
+  if (/^\d+$/.test(c)) return String(Number(c) + 1);
+  // single/multi letter
+  const chars = c.split("");
+  let i = chars.length - 1;
+  while (i >= 0) {
+    if (chars[i] !== "Z") {
+      chars[i] = String.fromCharCode(chars[i].charCodeAt(0) + 1);
+      return chars.join("");
+    }
+    chars[i] = "A";
+    i -= 1;
+  }
+  return "A" + chars.join("");
+}
+
+
+/** Crew role for soft RBAC in the pilot (client-enforced + audit label). */
+export type UserRole =
+  | "admin"
+  | "detailer"
+  | "fab"
+  | "field"
+  | "pm"
+  | "gc_view";
+
+export const USER_ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Admin / Document control",
+  detailer: "Detailer",
+  fab: "Fab shop",
+  field: "Field / Ironworker",
+  pm: "Project manager",
+  gc_view: "GC / Owner (view)",
+};
+
+export interface OrgProfile {
+  id: string;
+  name: string;
+  /** Optional contact for RFI mailto routing */
+  defaultRfiTo?: string;
+}

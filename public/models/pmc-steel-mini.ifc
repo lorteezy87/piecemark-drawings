@@ -1,0 +1,15 @@
+ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION(('ViewDefinition [CoordinationView]'),'2;1');
+FILE_NAME('pmc-steel-mini.ifc','2026-08-01T00:00:00',('PieceMark'),('PieceMark'),'','','');
+FILE_SCHEMA(('IFC4'));
+ENDSEC;
+DATA;
+#1=IFCPROJECT('0xScRe4drECQ4DMSqkSrzL',$,'PMC Mini',$,$,$,$,(#2),#3);
+#2=IFCGEOMETRICREPRESENTATIONCONTEXT($,'Model',3,1.E-05,#4,$);
+#3=IFCUNITASSIGNMENT((#5));
+#4=IFCAXIS2PLACEMENT3D(#6,$,$);
+#5=IFCSIUNIT(*,.LENGTHUNIT.,$,.METRE.);
+#6=IFCCARTESIANPOINT((0.,0.,0.));
+ENDSEC;
+END-ISO-10303-21;

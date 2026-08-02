@@ -1,8 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
+  Box,
   CheckCircle2,
   CircleDot,
+  FileImage,
   Hand,
   MessageSquare,
   StickyNote,
@@ -23,6 +25,7 @@ import {
   DRAWING_STATUS_LABELS,
   DRAWING_TYPE_LABELS,
   MARKUP_TYPE_LABELS,
+  nextRevision,
   type DrawingStatus,
   type MarkupType,
 } from "@/lib/types";
@@ -45,6 +48,9 @@ function DrawingDetailPage() {
   const submittals = useAppStore((s) => s.submittals);
   const markups = useAppStore((s) => s.markups);
   const updateDrawingStatus = useAppStore((s) => s.updateDrawingStatus);
+  const issueRevision = useAppStore((s) => s.issueRevision);
+  const placeHold = useAppStore((s) => s.placeHold);
+  const releaseHold = useAppStore((s) => s.releaseHold);
   const addMarkup = useAppStore((s) => s.addMarkup);
   const resolveMarkup = useAppStore((s) => s.resolveMarkup);
 
@@ -69,6 +75,10 @@ function DrawingDetailPage() {
   const [markupText, setMarkupText] = useState("");
   const [markupType, setMarkupType] = useState<MarkupType>("field_note");
   const [author, setAuthor] = useState("Shop / Field");
+  const [revDesc, setRevDesc] = useState("");
+  const [revStatus, setRevStatus] = useState<DrawingStatus>("issued_for_fab");
+  const [revBy, setRevBy] = useState("Project Manager");
+  const [holdReasonInput, setHoldReasonInput] = useState("");
 
   if (!drawing || !project) {
     return (
@@ -104,15 +114,47 @@ function DrawingDetailPage() {
     toast.success("Markup recorded on current revision");
   }
 
+  function submitRevision() {
+    if (!drawing || !revDesc.trim()) {
+      toast.error("Describe the revision change");
+      return;
+    }
+    const next = nextRevision(drawing.currentRev);
+    issueRevision(drawing.id, revDesc.trim(), revStatus, revBy.trim() || "User");
+    setRevDesc("");
+    setStatus(revStatus);
+    toast.success(`Issued Rev ${next}`);
+  }
+
   return (
     <AppShell
       title={`${drawing.number} · Rev ${drawing.currentRev}`}
       subtitle={drawing.title}
       actions={
-        <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/drawings" })}>
-          <ArrowLeft className="size-3.5" />
-          <span className="hidden sm:inline">Register</span>
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button asChild size="sm" variant="secondary" className="hidden sm:inline-flex">
+            <Link
+              to="/viewer"
+              search={{ mode: "sheet", drawingId: drawing.id }}
+            >
+              <FileImage className="size-3.5" />
+              Sheet
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="secondary" className="hidden sm:inline-flex">
+            <Link
+              to="/viewer"
+              search={{ mode: "ifc", drawingId: drawing.id }}
+            >
+              <Box className="size-3.5" />
+              IFC
+            </Link>
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/drawings" })}>
+            <ArrowLeft className="size-3.5" />
+            <span className="hidden sm:inline">Register</span>
+          </Button>
+        </div>
       }
     >
       <div className="space-y-5">
@@ -151,6 +193,27 @@ function DrawingDetailPage() {
             </div>
           </div>
 
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button asChild size="sm">
+              <Link
+                to="/viewer"
+                search={{ mode: "sheet", drawingId: drawing.id }}
+              >
+                <FileImage className="size-3.5" />
+                Open sheet viewer
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="secondary">
+              <Link
+                to="/viewer"
+                search={{ mode: "ifc", drawingId: drawing.id, mark: drawing.pieceMarks[0] }}
+              >
+                <Box className="size-3.5" />
+                View in IFC model
+              </Link>
+            </Button>
+          </div>
+
           {drawing.status === "on_hold" && drawing.holdReason && (
             <div className="mt-4 flex gap-2 rounded-[var(--radius-lg)] border border-[var(--color-warn)]/30 bg-[var(--color-warn-bg)] px-4 py-3 text-sm text-[var(--color-warn)]">
               <Hand className="mt-0.5 size-4 shrink-0" />
@@ -179,20 +242,29 @@ function DrawingDetailPage() {
           </div>
 
           <div className="mt-5">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--color-subtle)]">
-              Piece marks on this sheet
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--color-subtle)]">
+                Piece marks on this sheet
+              </div>
+              <Link
+                to="/pieces"
+                className="text-[11px] text-[var(--color-accent)] hover:underline"
+              >
+                Open piece index
+              </Link>
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {drawing.pieceMarks.length === 0 && (
                 <span className="text-sm text-[var(--color-muted)]">No piece marks</span>
               )}
               {drawing.pieceMarks.map((pm) => (
-                <span
+                <Link
                   key={pm}
-                  className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-2 py-1 font-mono-num text-xs"
+                  to="/pieces"
+                  className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-2 py-1 font-mono-num text-xs hover:border-[var(--color-border-strong)]"
                 >
                   {pm}
-                </span>
+                </Link>
               ))}
             </div>
           </div>
@@ -207,6 +279,11 @@ function DrawingDetailPage() {
                   Current working revision:{" "}
                   <span className="font-mono-num text-[var(--color-fg)]">
                     {drawing.currentRev}
+                  </span>
+                  {" · "}
+                  Next would be{" "}
+                  <span className="font-mono-num">
+                    {nextRevision(drawing.currentRev)}
                   </span>
                 </p>
               </div>
@@ -255,7 +332,7 @@ function DrawingDetailPage() {
               </div>
               <div className="space-y-3 border-b border-[var(--color-border)] px-5 py-4">
                 <div className="grid gap-2 sm:grid-cols-3">
-                  <Select
+                  <Select aria-label="Select field"
                     value={markupType}
                     onChange={(e) => setMarkupType(e.target.value as MarkupType)}
                   >
@@ -265,7 +342,7 @@ function DrawingDetailPage() {
                       </option>
                     ))}
                   </Select>
-                  <Input
+                  <Input aria-label="Author"
                     value={author}
                     onChange={(e) => setAuthor(e.target.value)}
                     placeholder="Author"
@@ -332,12 +409,116 @@ function DrawingDetailPage() {
 
           <div className="space-y-5 lg:col-span-2">
             <section className="panel p-5">
-              <h3 className="font-medium">Update status</h3>
+              <h3 className="font-medium">Issue new revision</h3>
               <p className="mt-1 text-xs text-[var(--color-muted)]">
-                Moves the sheet through shop/field release without a full rev cycle
+                Bumps rev letter, logs history, and sets release status (shop practice)
               </p>
               <div className="mt-3 space-y-2">
-                <Select
+                <Input aria-label="What changed on this rev?"
+                  value={revDesc}
+                  onChange={(e) => setRevDesc(e.target.value)}
+                  placeholder="What changed on this rev?"
+                />
+                <Select aria-label="Select field"
+                  value={revStatus}
+                  onChange={(e) => setRevStatus(e.target.value as DrawingStatus)}
+                >
+                  {(
+                    [
+                      "submitted",
+                      "aan",
+                      "approved",
+                      "revise_resubmit",
+                      "issued_for_fab",
+                      "issued_for_erection",
+                      "on_hold",
+                    ] as DrawingStatus[]
+                  ).map((s) => (
+                    <option key={s} value={s}>
+                      {DRAWING_STATUS_LABELS[s]}
+                    </option>
+                  ))}
+                </Select>
+                <Input aria-label="Issued by"
+                  value={revBy}
+                  onChange={(e) => setRevBy(e.target.value)}
+                  placeholder="Issued by"
+                />
+                <Button className="w-full" onClick={submitRevision}>
+                  Issue Rev {nextRevision(drawing.currentRev)}
+                </Button>
+              </div>
+            </section>
+
+
+            <section className="panel p-5">
+              <h3 className="font-medium">Fab / field hold</h3>
+              <p className="mt-1 text-xs text-[var(--color-muted)]">
+                Stops cut list and field work until released
+              </p>
+              {drawing.status === "on_hold" ? (
+                <div className="mt-3 space-y-2">
+                  {drawing.holdReason && (
+                    <p className="rounded-[var(--radius-md)] border border-[var(--color-warn)]/30 bg-[var(--color-warn-bg)] px-3 py-2 text-sm text-[var(--color-warn)]">
+                      {drawing.holdReason}
+                    </p>
+                  )}
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      releaseHold(drawing.id, "issued_for_fab");
+                      setStatus("issued_for_fab");
+                      toast.success(`${drawing.number} released to fab`);
+                    }}
+                  >
+                    Release to fab
+                  </Button>
+                  <Button
+                    className="w-full"
+                    variant="secondary"
+                    onClick={() => {
+                      releaseHold(drawing.id, "issued_for_erection");
+                      setStatus("issued_for_erection");
+                      toast.success(`${drawing.number} released to field`);
+                    }}
+                  >
+                    Release to field
+                  </Button>
+                </div>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  <Input aria-label="Hold reason (RFI, coordination…)"
+                    value={holdReasonInput}
+                    onChange={(e) => setHoldReasonInput(e.target.value)}
+                    placeholder="Hold reason (RFI, coordination…)"
+                  />
+                  <Button
+                    className="w-full"
+                    variant="danger"
+                    onClick={() => {
+                      if (!holdReasonInput.trim()) {
+                        toast.error("Enter a hold reason");
+                        return;
+                      }
+                      placeHold(drawing.id, holdReasonInput.trim());
+                      setStatus("on_hold");
+                      setHoldReasonInput("");
+                      toast.success(`Hold placed on ${drawing.number}`);
+                    }}
+                  >
+                    Place hold
+                  </Button>
+                </div>
+              )}
+            </section>
+
+            <section className="panel p-5">
+              <h3 className="font-medium">Update status</h3>
+              <p className="mt-1 text-xs text-[var(--color-muted)]">
+                Status only — no rev change
+              </p>
+              <div className="mt-3 space-y-2">
+                <Select aria-label="Select field"
                   value={status}
                   onChange={(e) => setStatus(e.target.value as DrawingStatus)}
                 >
@@ -347,7 +528,7 @@ function DrawingDetailPage() {
                     </option>
                   ))}
                 </Select>
-                <Button className="w-full" onClick={applyStatus}>
+                <Button className="w-full" variant="secondary" onClick={applyStatus}>
                   Apply status
                 </Button>
               </div>

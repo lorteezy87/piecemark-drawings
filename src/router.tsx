@@ -1,4 +1,8 @@
 import { createRouter } from "@tanstack/react-router";
+import {
+  DefaultErrorComponent,
+  NotFoundComponent,
+} from "@/components/system/error-boundary";
 import { routeTree } from "./routeTree.gen";
 
 export function getRouter() {
@@ -6,6 +10,10 @@ export function getRouter() {
     routeTree,
     scrollRestoration: true,
     defaultPreload: "intent",
+    defaultErrorComponent: ({ error, reset }) => (
+      <DefaultErrorComponent error={error as Error} reset={reset} />
+    ),
+    defaultNotFoundComponent: () => <NotFoundComponent />,
   });
 }
 

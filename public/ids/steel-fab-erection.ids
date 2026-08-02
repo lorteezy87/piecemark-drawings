@@ -1,0 +1,411 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ids xmlns="http://standards.buildingsmart.org/IDS" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://standards.buildingsmart.org/IDS http://standards.buildingsmart.org/IDS/1.0/ids.xsd">
+    <info>
+        <title>PieceMark Steel Fab &amp; Erection — Information Delivery Specification</title>
+        <copyright>PieceMark / Southwest Fabricators</copyright>
+        <version>1.0.0</version>
+        <description>Minimum IFC information requirements for structural steel subcontractors: piece marks (Tag), naming, materials, and common property sets for columns, beams, braces, and footings.</description>
+        <author>detailing@piecemark.example</author>
+        <date>2026-08-01</date>
+        <purpose>Validate IFC structural steel models before shop/field issue</purpose>
+        <milestone>IFC for fabrication &amp; erection</milestone>
+    </info>
+    <specifications>
+        <specification name="Column — piece mark (Tag)" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Every column shall carry a fabrication piece mark in Tag." instructions="Map Tag to piece-mark schedule / drawing register.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCCOLUMN</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required" instructions="Piece mark e.g. C1, B12, BR-3">
+                    <name>
+                        <simpleValue>Tag</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Column — Name" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Column shall have a human-readable Name.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCCOLUMN</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required">
+                    <name>
+                        <simpleValue>Name</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Column — Description" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Column shall include a Description for fabrication context.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCCOLUMN</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required">
+                    <name>
+                        <simpleValue>Description</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Column — ObjectType (section / role)" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Column shall declare ObjectType (e.g. W14x90, HSS brace)." instructions="Use AISC designation or role string.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCCOLUMN</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required">
+                    <name>
+                        <simpleValue>ObjectType</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Column — Material assigned" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Column shall have an associated IfcMaterial.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCCOLUMN</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <material cardinality="required" />
+            </requirements>
+        </specification>
+        <specification name="Column — Pset_ColumnCommon.LoadBearing" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Column shall provide LoadBearing in Pset_ColumnCommon.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCCOLUMN</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <property cardinality="required">
+                    <propertySet>
+                        <simpleValue>Pset_ColumnCommon</simpleValue>
+                    </propertySet>
+                    <baseName>
+                        <simpleValue>LoadBearing</simpleValue>
+                    </baseName>
+                </property>
+            </requirements>
+        </specification>
+        <specification name="Beam — piece mark (Tag)" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Every beam shall carry a fabrication piece mark in Tag." instructions="Map Tag to piece-mark schedule / drawing register.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCBEAM</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required" instructions="Piece mark e.g. C1, B12, BR-3">
+                    <name>
+                        <simpleValue>Tag</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Beam — Name" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Beam shall have a human-readable Name.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCBEAM</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required">
+                    <name>
+                        <simpleValue>Name</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Beam — Description" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Beam shall include a Description for fabrication context.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCBEAM</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required">
+                    <name>
+                        <simpleValue>Description</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Beam — ObjectType (section / role)" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Beam shall declare ObjectType (e.g. W14x90, HSS brace)." instructions="Use AISC designation or role string.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCBEAM</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required">
+                    <name>
+                        <simpleValue>ObjectType</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Beam — Material assigned" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Beam shall have an associated IfcMaterial.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCBEAM</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <material cardinality="required" />
+            </requirements>
+        </specification>
+        <specification name="Beam — Pset_BeamCommon.LoadBearing" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Beam shall provide LoadBearing in Pset_BeamCommon.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCBEAM</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <property cardinality="required">
+                    <propertySet>
+                        <simpleValue>Pset_BeamCommon</simpleValue>
+                    </propertySet>
+                    <baseName>
+                        <simpleValue>LoadBearing</simpleValue>
+                    </baseName>
+                </property>
+            </requirements>
+        </specification>
+        <specification name="Brace / member — piece mark (Tag)" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Every brace / member shall carry a fabrication piece mark in Tag." instructions="Map Tag to piece-mark schedule / drawing register.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCMEMBER</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required" instructions="Piece mark e.g. C1, B12, BR-3">
+                    <name>
+                        <simpleValue>Tag</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Brace / member — Name" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Brace / member shall have a human-readable Name.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCMEMBER</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required">
+                    <name>
+                        <simpleValue>Name</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Brace / member — Description" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Brace / member shall include a Description for fabrication context.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCMEMBER</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required">
+                    <name>
+                        <simpleValue>Description</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Brace / member — ObjectType (section / role)" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Brace / member shall declare ObjectType (e.g. W14x90, HSS brace)." instructions="Use AISC designation or role string.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCMEMBER</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required">
+                    <name>
+                        <simpleValue>ObjectType</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Brace / member — Material assigned" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Brace / member shall have an associated IfcMaterial.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCMEMBER</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <material cardinality="required" />
+            </requirements>
+        </specification>
+        <specification name="Brace / member — Pset_MemberCommon.LoadBearing" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Brace / member shall provide LoadBearing in Pset_MemberCommon.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCMEMBER</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <property cardinality="required">
+                    <propertySet>
+                        <simpleValue>Pset_MemberCommon</simpleValue>
+                    </propertySet>
+                    <baseName>
+                        <simpleValue>LoadBearing</simpleValue>
+                    </baseName>
+                </property>
+            </requirements>
+        </specification>
+        <specification name="Footing — piece mark (Tag)" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Every footing shall carry a fabrication piece mark in Tag." instructions="Map Tag to piece-mark schedule / drawing register.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCFOOTING</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required" instructions="Piece mark e.g. C1, B12, BR-3">
+                    <name>
+                        <simpleValue>Tag</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Footing — Name" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Footing shall have a human-readable Name.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCFOOTING</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required">
+                    <name>
+                        <simpleValue>Name</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Footing — Description" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Footing shall include a Description for fabrication context.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCFOOTING</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required">
+                    <name>
+                        <simpleValue>Description</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Footing — ObjectType (section / role)" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Footing shall declare ObjectType (e.g. W14x90, HSS brace)." instructions="Use AISC designation or role string.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCFOOTING</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <attribute cardinality="required">
+                    <name>
+                        <simpleValue>ObjectType</simpleValue>
+                    </name>
+                </attribute>
+            </requirements>
+        </specification>
+        <specification name="Footing — Material assigned" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Footing shall have an associated IfcMaterial.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCFOOTING</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <material cardinality="required" />
+            </requirements>
+        </specification>
+        <specification name="Footing — Pset_FootingCommon.LoadBearing" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Footing shall provide LoadBearing in Pset_FootingCommon.">
+            <applicability minOccurs="1" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCFOOTING</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <property cardinality="required">
+                    <propertySet>
+                        <simpleValue>Pset_FootingCommon</simpleValue>
+                    </propertySet>
+                    <baseName>
+                        <simpleValue>LoadBearing</simpleValue>
+                    </baseName>
+                </property>
+            </requirements>
+        </specification>
+        <specification name="Column — steel grade ASTM A992 (or documented grade)" ifcVersion="IFC4 IFC4X3_ADD2 IFC2X3" description="Structural columns shall reference ASTM A992 material (job default).">
+            <applicability minOccurs="0" maxOccurs="unbounded">
+                <entity>
+                    <name>
+                        <simpleValue>IFCCOLUMN</simpleValue>
+                    </name>
+                </entity>
+            </applicability>
+            <requirements>
+                <material cardinality="required">
+                    <value>
+                        <simpleValue>ASTM A992 Steel</simpleValue>
+                    </value>
+                </material>
+            </requirements>
+        </specification>
+    </specifications>
+</ids>

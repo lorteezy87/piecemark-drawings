@@ -3,8 +3,13 @@ import {
   AlertTriangle,
   ArrowRight,
   FileWarning,
+  Factory,
+  HardHat,
+  Hash,
   Layers3,
   MessageSquareWarning,
+  OctagonAlert,
+  Send,
 } from "lucide-react";
 import { useMemo } from "react";
 import {
@@ -18,7 +23,6 @@ import {
   YAxis,
 } from "recharts";
 import { SetRegister } from "@/components/drawings/set-register";
-import { DrawingTable } from "@/components/drawings/drawing-table";
 import { AppShell } from "@/components/layout/app-shell";
 import { StatCard } from "@/components/stat-card";
 import {
@@ -35,7 +39,6 @@ import {
 } from "@/lib/types";
 import {
   filterDrawingSets,
-  filterDrawings,
   projectMetrics,
   useAppStore,
   useSelectedProject,
@@ -52,11 +55,12 @@ function CommandCenter() {
   const drawingSets = useAppStore((s) => s.drawingSets);
   const sequences = useAppStore((s) => s.sequences);
   const rfis = useAppStore((s) => s.rfis);
+  const activities = useAppStore((s) => s.activities);
   const filters = useAppStore((s) => s.filters);
 
   const metrics = useMemo(
     () => (project ? projectMetrics(project.id) : null),
-    [project, drawings, rfis],
+    [project, drawings, rfis, drawingSets],
   );
 
   const projectSeqs = useMemo(
@@ -118,6 +122,15 @@ function CommandCenter() {
     return filterDrawingSets(drawingSets, drawings, filters, project.id);
   }, [drawingSets, drawings, filters, project?.id]);
 
+  const projectActivity = useMemo(() => {
+    if (!project) return [];
+    return activities
+      .filter((a) => a.projectId === project.id)
+      .slice()
+      .sort((a, b) => b.at.localeCompare(a.at))
+      .slice(0, 10);
+  }, [activities, project?.id]);
+
   if (!project || !metrics) {
     return (
       <AppShell title="Command Center">
@@ -140,7 +153,6 @@ function CommandCenter() {
       }
     >
       <div className="space-y-6">
-        {/* Job banner */}
         <section className="panel relative overflow-hidden p-5 sm:p-6">
           <div className="pointer-events-none absolute inset-0 steel-grid opacity-30" />
           <div className="relative grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -187,37 +199,69 @@ function CommandCenter() {
           </div>
         </section>
 
-        {/* KPI row */}
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
-            label="Drawing sets / sheets"
-            value={`${metrics.setCount} / ${metrics.total}`}
-            hint={`${metrics.fabReady} sheets ready for fab/field`}
+            label="Drawing sets"
+            value={metrics.setCount}
+            hint={`${metrics.total} sheets · ${metrics.pieceCount} piece marks`}
           />
           <StatCard
             label="Released for fab / field"
             value={`${metrics.fabReadyPct}%`}
-            hint={`${metrics.fabReady} of ${metrics.total} sheets`}
+            hint={`${metrics.fieldSheets} IFC field sheets`}
             tone="success"
           />
           <StatCard
             label="On hold / R&R"
             value={metrics.onHold + metrics.revise}
-            hint={`${metrics.onHold} holds · ${metrics.revise} revise & resubmit`}
+            hint={`${metrics.setsOnHold} sets affected`}
             tone={metrics.onHold + metrics.revise > 0 ? "warn" : "default"}
           />
           <StatCard
             label="Open RFIs"
             value={metrics.openRfis}
-            hint={`${metrics.openSubs} packages in review`}
+            hint={`${metrics.openTransmittals} open transmittals`}
             tone={metrics.openRfis > 0 ? "danger" : "success"}
+          />
+        </section>
+
+        <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <QuickLink
+            to="/holds"
+            icon={OctagonAlert}
+            label="Holds & blockers"
+            hint="Fab/field stop points"
+          />
+          <QuickLink
+            to="/shop"
+            icon={Factory}
+            label="Shop package"
+            hint={`${metrics.shopSheets} in fab queue`}
+          />
+          <QuickLink
+            to="/field"
+            icon={HardHat}
+            label="Field package"
+            hint={`${metrics.fieldSheets} IFC sheets`}
+          />
+          <QuickLink
+            to="/pieces"
+            icon={Hash}
+            label="Piece mark index"
+            hint="Lookup by mark"
+          />
+          <QuickLink
+            to="/transmittals"
+            icon={Send}
+            label="Transmittals"
+            hint="Shop / field issues"
           />
         </section>
 
         {filters.query.trim() && (
           <section className="space-y-3">
             <h3 className="text-sm font-medium text-[var(--color-muted)]">
-              Matching sets for “{filters.query}”
+              Search results for “{filters.query}”
             </h3>
             <SetRegister
               sets={searchSets}
@@ -229,7 +273,6 @@ function CommandCenter() {
         )}
 
         <section className="grid gap-4 xl:grid-cols-5">
-          {/* Status chart */}
           <div className="panel p-4 sm:p-5 xl:col-span-3">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
@@ -284,7 +327,6 @@ function CommandCenter() {
             </div>
           </div>
 
-          {/* Type breakdown */}
           <div className="panel p-4 sm:p-5 xl:col-span-2">
             <h3 className="font-medium">By drawing type</h3>
             <p className="mb-4 text-xs text-[var(--color-muted)]">
@@ -315,7 +357,6 @@ function CommandCenter() {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-2">
-          {/* Needs attention */}
           <div className="panel overflow-hidden">
             <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3 sm:px-5">
               <div className="flex items-center gap-2">
@@ -323,10 +364,10 @@ function CommandCenter() {
                 <h3 className="font-medium">Needs attention</h3>
               </div>
               <Link
-                to="/drawings"
+                to="/holds"
                 className="text-xs text-[var(--color-accent)] hover:underline"
               >
-                Full register
+                Holds board
               </Link>
             </div>
             <ul className="divide-y divide-[var(--color-border)]/70">
@@ -366,7 +407,6 @@ function CommandCenter() {
             </ul>
           </div>
 
-          {/* Open RFIs */}
           <div className="panel overflow-hidden">
             <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3 sm:px-5">
               <div className="flex items-center gap-2">
@@ -400,7 +440,42 @@ function CommandCenter() {
           </div>
         </section>
 
-        {/* Sequences strip */}
+
+        <section className="panel overflow-hidden">
+          <div className="border-b border-[var(--color-border)] px-5 py-3">
+            <h3 className="font-medium">Job activity</h3>
+            <p className="text-xs text-[var(--color-muted)]">
+              Holds, revs, RFIs, submittals, and transmittals on this job
+            </p>
+          </div>
+          {projectActivity.length === 0 ? (
+            <div className="px-5 py-8 text-sm text-[var(--color-muted)]">
+              No activity recorded yet.
+            </div>
+          ) : (
+            <ul className="divide-y divide-[var(--color-border)]/70">
+              {projectActivity.map((a) => (
+                <li key={a.id} className="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{a.summary}</div>
+                    {a.detail && (
+                      <div className="mt-0.5 text-xs text-[var(--color-muted)] line-clamp-2">
+                        {a.detail}
+                      </div>
+                    )}
+                    <div className="mt-1 text-[11px] text-[var(--color-subtle)]">
+                      {a.actor} · {a.kind}
+                    </div>
+                  </div>
+                  <div className="shrink-0 font-mono-num text-xs text-[var(--color-subtle)]">
+                    {formatDate(a.at.slice(0, 10))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         <section className="panel p-4 sm:p-5">
           <div className="mb-4 flex items-center justify-between">
             <div>
@@ -456,5 +531,32 @@ function CommandCenter() {
         </section>
       </div>
     </AppShell>
+  );
+}
+
+function QuickLink({
+  to,
+  icon: Icon,
+  label,
+  hint,
+}: {
+  to: string;
+  icon: typeof Hash;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <Link
+      to={to}
+      className="panel flex items-center gap-3 px-4 py-3 transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)]/40"
+    >
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)]">
+        <Icon className="size-4 text-[var(--color-muted)]" />
+      </div>
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{label}</div>
+        <div className="truncate text-xs text-[var(--color-muted)]">{hint}</div>
+      </div>
+    </Link>
   );
 }

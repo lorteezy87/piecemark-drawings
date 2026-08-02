@@ -1,0 +1,226 @@
+{
+  "ids": {
+    "title": "PieceMark Steel Fab & Erection \u2014 Information Delivery Specification",
+    "version": "1.0.0",
+    "path": "/ids/steel-fab-erection.ids",
+    "filename": "steel-fab-erection.ids"
+  },
+  "ifc": {
+    "path": "/models/pmc-steel.ifc",
+    "filename": "pmc-steel.ifc",
+    "schema": "IFC4",
+    "project": "SE-24-1187 Phoenix Medical Center Steel"
+  },
+  "summary": {
+    "totalSpecifications": 25,
+    "specificationsPassed": 25,
+    "specificationsFailed": 0,
+    "totalFailureRows": 0,
+    "uniqueElementsFailing": 0,
+    "overallPass": true
+  },
+  "specifications": [
+    {
+      "name": "Column \u2014 piece mark (Tag)",
+      "description": "Every column shall carry a fabrication piece mark in Tag.",
+      "status": "pass",
+      "applicable": 64,
+      "passed": 64,
+      "failed": 0
+    },
+    {
+      "name": "Column \u2014 Name",
+      "description": "Column shall have a human-readable Name.",
+      "status": "pass",
+      "applicable": 64,
+      "passed": 64,
+      "failed": 0
+    },
+    {
+      "name": "Column \u2014 Description",
+      "description": "Column shall include a Description for fabrication context.",
+      "status": "pass",
+      "applicable": 64,
+      "passed": 64,
+      "failed": 0
+    },
+    {
+      "name": "Column \u2014 ObjectType (section / role)",
+      "description": "Column shall declare ObjectType (e.g. W14x90, HSS brace).",
+      "status": "pass",
+      "applicable": 64,
+      "passed": 64,
+      "failed": 0
+    },
+    {
+      "name": "Column \u2014 Material assigned",
+      "description": "Column shall have an associated IfcMaterial.",
+      "status": "pass",
+      "applicable": 64,
+      "passed": 64,
+      "failed": 0
+    },
+    {
+      "name": "Column \u2014 Pset_ColumnCommon.LoadBearing",
+      "description": "Column shall provide LoadBearing in Pset_ColumnCommon.",
+      "status": "pass",
+      "applicable": 64,
+      "passed": 64,
+      "failed": 0
+    },
+    {
+      "name": "Beam \u2014 piece mark (Tag)",
+      "description": "Every beam shall carry a fabrication piece mark in Tag.",
+      "status": "pass",
+      "applicable": 96,
+      "passed": 96,
+      "failed": 0
+    },
+    {
+      "name": "Beam \u2014 Name",
+      "description": "Beam shall have a human-readable Name.",
+      "status": "pass",
+      "applicable": 96,
+      "passed": 96,
+      "failed": 0
+    },
+    {
+      "name": "Beam \u2014 Description",
+      "description": "Beam shall include a Description for fabrication context.",
+      "status": "pass",
+      "applicable": 96,
+      "passed": 96,
+      "failed": 0
+    },
+    {
+      "name": "Beam \u2014 ObjectType (section / role)",
+      "description": "Beam shall declare ObjectType (e.g. W14x90, HSS brace).",
+      "status": "pass",
+      "applicable": 96,
+      "passed": 96,
+      "failed": 0
+    },
+    {
+      "name": "Beam \u2014 Material assigned",
+      "description": "Beam shall have an associated IfcMaterial.",
+      "status": "pass",
+      "applicable": 96,
+      "passed": 96,
+      "failed": 0
+    },
+    {
+      "name": "Beam \u2014 Pset_BeamCommon.LoadBearing",
+      "description": "Beam shall provide LoadBearing in Pset_BeamCommon.",
+      "status": "pass",
+      "applicable": 96,
+      "passed": 96,
+      "failed": 0
+    },
+    {
+      "name": "Brace / member \u2014 piece mark (Tag)",
+      "description": "Every brace / member shall carry a fabrication piece mark in Tag.",
+      "status": "pass",
+      "applicable": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "name": "Brace / member \u2014 Name",
+      "description": "Brace / member shall have a human-readable Name.",
+      "status": "pass",
+      "applicable": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "name": "Brace / member \u2014 Description",
+      "description": "Brace / member shall include a Description for fabrication context.",
+      "status": "pass",
+      "applicable": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "name": "Brace / member \u2014 ObjectType (section / role)",
+      "description": "Brace / member shall declare ObjectType (e.g. W14x90, HSS brace).",
+      "status": "pass",
+      "applicable": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "name": "Brace / member \u2014 Material assigned",
+      "description": "Brace / member shall have an associated IfcMaterial.",
+      "status": "pass",
+      "applicable": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "name": "Brace / member \u2014 Pset_MemberCommon.LoadBearing",
+      "description": "Brace / member shall provide LoadBearing in Pset_MemberCommon.",
+      "status": "pass",
+      "applicable": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "name": "Footing \u2014 piece mark (Tag)",
+      "description": "Every footing shall carry a fabrication piece mark in Tag.",
+      "status": "pass",
+      "applicable": 8,
+      "passed": 8,
+      "failed": 0
+    },
+    {
+      "name": "Footing \u2014 Name",
+      "description": "Footing shall have a human-readable Name.",
+      "status": "pass",
+      "applicable": 8,
+      "passed": 8,
+      "failed": 0
+    },
+    {
+      "name": "Footing \u2014 Description",
+      "description": "Footing shall include a Description for fabrication context.",
+      "status": "pass",
+      "applicable": 8,
+      "passed": 8,
+      "failed": 0
+    },
+    {
+      "name": "Footing \u2014 ObjectType (section / role)",
+      "description": "Footing shall declare ObjectType (e.g. W14x90, HSS brace).",
+      "status": "pass",
+      "applicable": 8,
+      "passed": 8,
+      "failed": 0
+    },
+    {
+      "name": "Footing \u2014 Material assigned",
+      "description": "Footing shall have an associated IfcMaterial.",
+      "status": "pass",
+      "applicable": 8,
+      "passed": 8,
+      "failed": 0
+    },
+    {
+      "name": "Footing \u2014 Pset_FootingCommon.LoadBearing",
+      "description": "Footing shall provide LoadBearing in Pset_FootingCommon.",
+      "status": "pass",
+      "applicable": 8,
+      "passed": 8,
+      "failed": 0
+    },
+    {
+      "name": "Column \u2014 steel grade ASTM A992 (or documented grade)",
+      "description": "Structural columns shall reference ASTM A992 material (job default).",
+      "status": "pass",
+      "applicable": 64,
+      "passed": 64,
+      "failed": 0
+    }
+  ],
+  "failures": [],
+  "elements": []
+}

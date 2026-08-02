@@ -97,3 +97,36 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Viewer immersive fallback when Fullscreen API is blocked (iframe / preview) */
+.piecemark-immersive {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  z-index: 9999 !important;
+  border-radius: 0 !important;
+  background: var(--color-bg, #0c0e12);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+@media print {
+  body {
+    background: white !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+}

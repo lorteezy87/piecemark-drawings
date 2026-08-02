@@ -11,13 +11,26 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DrawingsRouteImport } from './routes/drawings'
+import { Route as FieldRouteImport } from './routes/field'
+import { Route as HoldsRouteImport } from './routes/holds'
+import { Route as IdsRouteImport } from './routes/ids'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as PiecesRouteImport } from './routes/pieces'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as RfisRouteImport } from './routes/rfis'
 import { Route as SequencesRouteImport } from './routes/sequences'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ShopRouteImport } from './routes/shop'
 import { Route as SubmittalsRouteImport } from './routes/submittals'
+import { Route as TransmittalsRouteImport } from './routes/transmittals'
+import { Route as ViewerRouteImport } from './routes/viewer'
 import { Route as DrawingsIndexRouteImport } from './routes/drawings.index'
 import { Route as DrawingsDrawingIdRouteImport } from './routes/drawings.$drawingId'
+import { Route as PrintFieldRouteImport } from './routes/print.field'
+import { Route as PrintShopRouteImport } from './routes/print.shop'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as DrawingsSetsSetIdRouteImport } from './routes/drawings.sets.$setId'
+import { Route as PrintTransmittalTrIdRouteImport } from './routes/print.transmittal.$trId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -27,6 +40,31 @@ const IndexRoute = IndexRouteImport.update({
 const DrawingsRoute = DrawingsRouteImport.update({
   id: '/drawings',
   path: '/drawings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FieldRoute = FieldRouteImport.update({
+  id: '/field',
+  path: '/field',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HoldsRoute = HoldsRouteImport.update({
+  id: '/holds',
+  path: '/holds',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IdsRoute = IdsRouteImport.update({
+  id: '/ids',
+  path: '/ids',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PiecesRoute = PiecesRouteImport.update({
+  id: '/pieces',
+  path: '/pieces',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsRoute = ProjectsRouteImport.update({
@@ -44,9 +82,29 @@ const SequencesRoute = SequencesRouteImport.update({
   path: '/sequences',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShopRoute = ShopRouteImport.update({
+  id: '/shop',
+  path: '/shop',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SubmittalsRoute = SubmittalsRouteImport.update({
   id: '/submittals',
   path: '/submittals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TransmittalsRoute = TransmittalsRouteImport.update({
+  id: '/transmittals',
+  path: '/transmittals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ViewerRoute = ViewerRouteImport.update({
+  id: '/viewer',
+  path: '/viewer',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DrawingsIndexRoute = DrawingsIndexRouteImport.update({
@@ -59,87 +117,198 @@ const DrawingsDrawingIdRoute = DrawingsDrawingIdRouteImport.update({
   path: '/$drawingId',
   getParentRoute: () => DrawingsRoute,
 } as any)
+const PrintFieldRoute = PrintFieldRouteImport.update({
+  id: '/print/field',
+  path: '/print/field',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrintShopRoute = PrintShopRouteImport.update({
+  id: '/print/shop',
+  path: '/print/shop',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DrawingsSetsSetIdRoute = DrawingsSetsSetIdRouteImport.update({
   id: '/sets/$setId',
   path: '/sets/$setId',
   getParentRoute: () => DrawingsRoute,
 } as any)
+const PrintTransmittalTrIdRoute = PrintTransmittalTrIdRouteImport.update({
+  id: '/print/transmittal/$trId',
+  path: '/print/transmittal/$trId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/drawings': typeof DrawingsRouteWithChildren
+  '/field': typeof FieldRoute
+  '/holds': typeof HoldsRoute
+  '/ids': typeof IdsRoute
+  '/login': typeof LoginRoute
+  '/pieces': typeof PiecesRoute
   '/projects': typeof ProjectsRoute
   '/rfis': typeof RfisRoute
   '/sequences': typeof SequencesRoute
+  '/settings': typeof SettingsRoute
+  '/shop': typeof ShopRoute
   '/submittals': typeof SubmittalsRoute
+  '/transmittals': typeof TransmittalsRoute
+  '/viewer': typeof ViewerRoute
   '/drawings/$drawingId': typeof DrawingsDrawingIdRoute
+  '/print/field': typeof PrintFieldRoute
+  '/print/shop': typeof PrintShopRoute
   '/drawings/': typeof DrawingsIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/drawings/sets/$setId': typeof DrawingsSetsSetIdRoute
+  '/print/transmittal/$trId': typeof PrintTransmittalTrIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/field': typeof FieldRoute
+  '/holds': typeof HoldsRoute
+  '/ids': typeof IdsRoute
+  '/login': typeof LoginRoute
+  '/pieces': typeof PiecesRoute
   '/projects': typeof ProjectsRoute
   '/rfis': typeof RfisRoute
   '/sequences': typeof SequencesRoute
+  '/settings': typeof SettingsRoute
+  '/shop': typeof ShopRoute
   '/submittals': typeof SubmittalsRoute
+  '/transmittals': typeof TransmittalsRoute
+  '/viewer': typeof ViewerRoute
   '/drawings/$drawingId': typeof DrawingsDrawingIdRoute
+  '/print/field': typeof PrintFieldRoute
+  '/print/shop': typeof PrintShopRoute
   '/drawings': typeof DrawingsIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/drawings/sets/$setId': typeof DrawingsSetsSetIdRoute
+  '/print/transmittal/$trId': typeof PrintTransmittalTrIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/drawings': typeof DrawingsRouteWithChildren
+  '/field': typeof FieldRoute
+  '/holds': typeof HoldsRoute
+  '/ids': typeof IdsRoute
+  '/login': typeof LoginRoute
+  '/pieces': typeof PiecesRoute
   '/projects': typeof ProjectsRoute
   '/rfis': typeof RfisRoute
   '/sequences': typeof SequencesRoute
+  '/settings': typeof SettingsRoute
+  '/shop': typeof ShopRoute
   '/submittals': typeof SubmittalsRoute
+  '/transmittals': typeof TransmittalsRoute
+  '/viewer': typeof ViewerRoute
   '/drawings/$drawingId': typeof DrawingsDrawingIdRoute
+  '/print/field': typeof PrintFieldRoute
+  '/print/shop': typeof PrintShopRoute
   '/drawings/': typeof DrawingsIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/drawings/sets/$setId': typeof DrawingsSetsSetIdRoute
+  '/print/transmittal/$trId': typeof PrintTransmittalTrIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/drawings'
+    | '/field'
+    | '/holds'
+    | '/ids'
+    | '/login'
+    | '/pieces'
     | '/projects'
     | '/rfis'
     | '/sequences'
+    | '/settings'
+    | '/shop'
     | '/submittals'
+    | '/transmittals'
+    | '/viewer'
     | '/drawings/$drawingId'
+    | '/print/field'
+    | '/print/shop'
     | '/drawings/'
+    | '/api/auth/$'
     | '/drawings/sets/$setId'
+    | '/print/transmittal/$trId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/field'
+    | '/holds'
+    | '/ids'
+    | '/login'
+    | '/pieces'
     | '/projects'
     | '/rfis'
     | '/sequences'
+    | '/settings'
+    | '/shop'
     | '/submittals'
+    | '/transmittals'
+    | '/viewer'
     | '/drawings/$drawingId'
+    | '/print/field'
+    | '/print/shop'
     | '/drawings'
+    | '/api/auth/$'
     | '/drawings/sets/$setId'
+    | '/print/transmittal/$trId'
   id:
     | '__root__'
     | '/'
     | '/drawings'
+    | '/field'
+    | '/holds'
+    | '/ids'
+    | '/login'
+    | '/pieces'
     | '/projects'
     | '/rfis'
     | '/sequences'
+    | '/settings'
+    | '/shop'
     | '/submittals'
+    | '/transmittals'
+    | '/viewer'
     | '/drawings/$drawingId'
+    | '/print/field'
+    | '/print/shop'
     | '/drawings/'
+    | '/api/auth/$'
     | '/drawings/sets/$setId'
+    | '/print/transmittal/$trId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DrawingsRoute: typeof DrawingsRouteWithChildren
+  FieldRoute: typeof FieldRoute
+  HoldsRoute: typeof HoldsRoute
+  IdsRoute: typeof IdsRoute
+  LoginRoute: typeof LoginRoute
+  PiecesRoute: typeof PiecesRoute
   ProjectsRoute: typeof ProjectsRoute
   RfisRoute: typeof RfisRoute
   SequencesRoute: typeof SequencesRoute
+  SettingsRoute: typeof SettingsRoute
+  ShopRoute: typeof ShopRoute
   SubmittalsRoute: typeof SubmittalsRoute
+  TransmittalsRoute: typeof TransmittalsRoute
+  ViewerRoute: typeof ViewerRoute
+  PrintFieldRoute: typeof PrintFieldRoute
+  PrintShopRoute: typeof PrintShopRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  PrintTransmittalTrIdRoute: typeof PrintTransmittalTrIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -156,6 +325,41 @@ declare module '@tanstack/react-router' {
       path: '/drawings'
       fullPath: '/drawings'
       preLoaderRoute: typeof DrawingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/field': {
+      id: '/field'
+      path: '/field'
+      fullPath: '/field'
+      preLoaderRoute: typeof FieldRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/holds': {
+      id: '/holds'
+      path: '/holds'
+      fullPath: '/holds'
+      preLoaderRoute: typeof HoldsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ids': {
+      id: '/ids'
+      path: '/ids'
+      fullPath: '/ids'
+      preLoaderRoute: typeof IdsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pieces': {
+      id: '/pieces'
+      path: '/pieces'
+      fullPath: '/pieces'
+      preLoaderRoute: typeof PiecesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/projects': {
@@ -179,11 +383,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SequencesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shop': {
+      id: '/shop'
+      path: '/shop'
+      fullPath: '/shop'
+      preLoaderRoute: typeof ShopRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/submittals': {
       id: '/submittals'
       path: '/submittals'
       fullPath: '/submittals'
       preLoaderRoute: typeof SubmittalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/transmittals': {
+      id: '/transmittals'
+      path: '/transmittals'
+      fullPath: '/transmittals'
+      preLoaderRoute: typeof TransmittalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/viewer': {
+      id: '/viewer'
+      path: '/viewer'
+      fullPath: '/viewer'
+      preLoaderRoute: typeof ViewerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/drawings/': {
@@ -200,12 +432,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DrawingsDrawingIdRouteImport
       parentRoute: typeof DrawingsRoute
     }
+    '/print/field': {
+      id: '/print/field'
+      path: '/print/field'
+      fullPath: '/print/field'
+      preLoaderRoute: typeof PrintFieldRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/print/shop': {
+      id: '/print/shop'
+      path: '/print/shop'
+      fullPath: '/print/shop'
+      preLoaderRoute: typeof PrintShopRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/drawings/sets/$setId': {
       id: '/drawings/sets/$setId'
       path: '/sets/$setId'
       fullPath: '/drawings/sets/$setId'
       preLoaderRoute: typeof DrawingsSetsSetIdRouteImport
       parentRoute: typeof DrawingsRoute
+    }
+    '/print/transmittal/$trId': {
+      id: '/print/transmittal/$trId'
+      path: '/print/transmittal/$trId'
+      fullPath: '/print/transmittal/$trId'
+      preLoaderRoute: typeof PrintTransmittalTrIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -229,10 +489,23 @@ const DrawingsRouteWithChildren = DrawingsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DrawingsRoute: DrawingsRouteWithChildren,
+  FieldRoute: FieldRoute,
+  HoldsRoute: HoldsRoute,
+  IdsRoute: IdsRoute,
+  LoginRoute: LoginRoute,
+  PiecesRoute: PiecesRoute,
   ProjectsRoute: ProjectsRoute,
   RfisRoute: RfisRoute,
   SequencesRoute: SequencesRoute,
+  SettingsRoute: SettingsRoute,
+  ShopRoute: ShopRoute,
   SubmittalsRoute: SubmittalsRoute,
+  TransmittalsRoute: TransmittalsRoute,
+  ViewerRoute: ViewerRoute,
+  PrintFieldRoute: PrintFieldRoute,
+  PrintShopRoute: PrintShopRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
+  PrintTransmittalTrIdRoute: PrintTransmittalTrIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

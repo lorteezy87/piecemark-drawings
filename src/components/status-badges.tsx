@@ -6,12 +6,16 @@ import {
   RFI_STATUS_LABELS,
   SEQUENCE_STATUS_LABELS,
   SUBMITTAL_STATUS_LABELS,
+  TRANSMITTAL_KIND_LABELS,
+  TRANSMITTAL_STATUS_LABELS,
   type DrawingStatus,
   type ProjectStatus,
   type RfiPriority,
   type RfiStatus,
   type SequenceStatus,
   type SubmittalStatus,
+  type TransmittalKind,
+  type TransmittalStatus,
 } from "@/lib/types";
 
 function drawingVariant(status: DrawingStatus) {
@@ -86,9 +90,7 @@ export function RfiPriorityBadge({ priority }: { priority: RfiPriority }) {
       ? "danger"
       : priority === "high"
         ? "warn"
-        : priority === "normal"
-          ? "default"
-          : "default";
+        : "default";
   return <Badge variant={variant}>{RFI_PRIORITY_LABELS[priority]}</Badge>;
 }
 
@@ -104,4 +106,20 @@ export function SubmittalStatusBadge({ status }: { status: SubmittalStatus }) {
             ? "warn"
             : "default";
   return <Badge variant={variant}>{SUBMITTAL_STATUS_LABELS[status]}</Badge>;
+}
+
+export function TransmittalStatusBadge({ status }: { status: TransmittalStatus }) {
+  const variant =
+    status === "acknowledged"
+      ? "success"
+      : status === "issued"
+        ? "info"
+        : status === "superseded"
+          ? "default"
+          : "primary";
+  return <Badge variant={variant}>{TRANSMITTAL_STATUS_LABELS[status]}</Badge>;
+}
+
+export function TransmittalKindBadge({ kind }: { kind: TransmittalKind }) {
+  return <Badge variant="default">{TRANSMITTAL_KIND_LABELS[kind]}</Badge>;
 }

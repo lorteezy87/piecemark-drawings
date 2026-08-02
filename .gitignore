@@ -9,3 +9,8 @@ screenshots
 artifacts
 .tmp
 .DS_Store
+
+.deploy-args.json
+attachments/
+artifacts/
+*.token
