@@ -4,6 +4,7 @@ import type { UserRole } from "@/lib/types";
 export type Permission =
   | "job.create"
   | "job.reset"
+  | "job.delete"
   | "drawing.edit"
   | "drawing.upload"
   | "status.change"
@@ -18,6 +19,7 @@ export type Permission =
 const ALL: Permission[] = [
   "job.create",
   "job.reset",
+  "job.delete",
   "drawing.edit",
   "drawing.upload",
   "status.change",
@@ -32,7 +34,10 @@ const ALL: Permission[] = [
 
 const ROLE_PERMS: Record<UserRole, Permission[]> = {
   admin: ALL,
+  // Detailer is the primary pilot role — can manage jobs and demos on station
   detailer: [
+    "job.create",
+    "job.delete",
     "drawing.edit",
     "drawing.upload",
     "status.change",
@@ -47,6 +52,8 @@ const ROLE_PERMS: Record<UserRole, Permission[]> = {
   field: ["rfi.create", "drawing.upload", "sync.push"],
   pm: [
     "job.create",
+    "job.reset",
+    "job.delete",
     "drawing.edit",
     "drawing.upload",
     "status.change",
@@ -76,6 +83,7 @@ export function permissionLabel(perm: Permission): string {
   const map: Record<Permission, string> = {
     "job.create": "create jobs",
     "job.reset": "reset demo data",
+    "job.delete": "delete jobs",
     "drawing.edit": "edit drawings",
     "drawing.upload": "upload sheets",
     "status.change": "change status",

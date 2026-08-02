@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Download, Plus, Upload } from "lucide-react";
+import { Download, Plus, Trash2, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/app-shell";
@@ -22,6 +22,8 @@ function ProjectsPage() {
   const drawings = useAppStore((s) => s.drawings);
   const rfis = useAppStore((s) => s.rfis);
   const resetDemoData = useAppStore((s) => s.resetDemoData);
+  const deleteProject = useAppStore((s) => s.deleteProject);
+  const clearDemoProjects = useAppStore((s) => s.clearDemoProjects);
   const createProject = useAppStore((s) => s.createProject);
   const crewRole = useAppStore((s) => s.crewRole);
   const exportPackage = useAppStore((s) => s.exportPackage);
@@ -124,6 +126,29 @@ function ProjectsPage() {
               }}
             />
           </label>
+          {can(crewRole, "job.delete") && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => {
+                if (
+                  confirm(
+                    "Remove built-in demo jobs (PMC, warehouse, office tower)? Your other jobs stay.",
+                  )
+                ) {
+                  const n = clearDemoProjects();
+                  if (n > 0) {
+                    toast.success(`Removed ${n} demo job(s)`);
+                  } else {
+                    toast.message("No demo jobs left to remove");
+                  }
+                }
+              }}
+            >
+              <Trash2 className="size-3.5" />
+              Remove demos
+            </Button>
+          )}
           {can(crewRole, "job.reset") && (
             <Button
               variant="ghost"
@@ -147,9 +172,9 @@ function ProjectsPage() {
     >
       <div className="space-y-4">
         <p className="max-w-2xl text-sm text-[var(--color-muted)]">
-          Create real jobs, keep the demo as a reference, and export a JSON
-          package for backup or handoff to another machine. Drawing PDFs stay in
-          this browser (IndexedDB) until multi-user cloud storage is enabled.
+          Use <strong className="font-medium text-[var(--color-fg)]">Remove demos</strong> in
+          the top bar to drop the sample jobs, or <strong className="font-medium text-[var(--color-fg)]">Delete job</strong> on each card.
+          Detailer / PM / Admin can delete.
         </p>
 
         {showCreate && (
@@ -282,6 +307,27 @@ function ProjectsPage() {
                   <Button asChild size="sm" variant="ghost">
                     <Link to="/viewer">Viewer</Link>
                   </Button>
+                  {can(crewRole, "job.delete") && (
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={() => {
+                        if (
+                          confirm(
+                            `Delete job ${project.jobNumber} — ${project.name}? All sheets, RFIs, holds, and sequences on this job will be removed.`,
+                          )
+                        ) {
+                          const ok = deleteProject(project.id);
+                          if (ok) {
+                            toast.success(`Deleted ${project.jobNumber}`);
+                          }
+                        }
+                      }}
+                    >
+                      <Trash2 className="size-3.5" />
+                      Delete job
+                    </Button>
+                  )}
                 </div>
               </article>
             );

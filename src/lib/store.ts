@@ -153,6 +153,8 @@ interface AppState {
     notes?: string,
   ) => void;
   resetDemoData: () => void;
+  deleteProject: (projectId: string) => boolean;
+  clearDemoProjects: () => number;
   setCrewRole: (role: UserRole) => void;
   setSessionActor: (name: string) => void;
   setOrgProfile: (input: { orgName?: string; orgRfiEmail?: string }) => void;
@@ -1129,6 +1131,89 @@ export const useAppStore = create<AppState>()(
           return { drawings, drawingSets };
         });
         return { sheetsCreated, marksAdded };
+      },
+
+      deleteProject: (projectId) => {
+        const role = get().crewRole;
+        if (!can(role, "job.delete") && !can(role, "job.reset")) {
+          toast.error("Not allowed: delete job");
+          return false;
+        }
+        const s = get();
+        const project = s.projects.find((p) => p.id === projectId);
+        if (!project) return false;
+        if (s.projects.length <= 1) {
+          toast.error("Keep at least one job, or use Reset demo / New job first.");
+          return false;
+        }
+        const drawingIds = new Set(
+          s.drawings.filter((d) => d.projectId === projectId).map((d) => d.id),
+        );
+        // Clear sheet blobs for this job
+        for (const id of drawingIds) {
+          void get().clearSheetAsset(id);
+        }
+        const nextProjects = s.projects.filter((p) => p.id !== projectId);
+        const nextSelected =
+          s.selectedProjectId === projectId
+            ? (nextProjects[0]?.id ?? null)
+            : s.selectedProjectId;
+        set({
+          projects: nextProjects,
+          sequences: s.sequences.filter((x) => x.projectId !== projectId),
+          drawingSets: s.drawingSets.filter((x) => x.projectId !== projectId),
+          drawings: s.drawings.filter((d) => d.projectId !== projectId),
+          revisions: s.revisions.filter((r) => !drawingIds.has(r.drawingId)),
+          rfis: s.rfis.filter((r) => r.projectId !== projectId),
+          submittals: s.submittals.filter((x) => x.projectId !== projectId),
+          markups: s.markups.filter((m) => !drawingIds.has(m.drawingId)),
+          transmittals: s.transmittals.filter((x) => x.projectId !== projectId),
+          activities: [
+            {
+              id: newId("act"),
+              at: new Date().toISOString(),
+              projectId: nextSelected ?? projectId,
+              kind: "system" as const,
+              actor: actorName(s),
+              summary: `Deleted job ${project.jobNumber} — ${project.name}`,
+            },
+            ...s.activities.filter((a) => a.projectId !== projectId),
+          ].slice(0, 200),
+          selectedProjectId: nextSelected,
+        });
+        return true;
+      },
+
+      clearDemoProjects: () => {
+        const role = get().crewRole;
+        if (!can(role, "job.delete") && !can(role, "job.reset")) {
+          toast.error("Not allowed: remove demo jobs");
+          return 0;
+        }
+        const DEMO_IDS = new Set(["proj-pmc", "proj-dlw", "proj-sot"]);
+        const toRemove = get().projects.filter((p) => DEMO_IDS.has(p.id));
+        if (toRemove.length === 0) {
+          toast.message("No built-in demo jobs left to remove.");
+          return 0;
+        }
+        // Temporarily allow deleting last demo by ensuring a real job remains
+        const nonDemo = get().projects.filter((p) => !DEMO_IDS.has(p.id));
+        if (nonDemo.length === 0) {
+          // Create a blank production shell first so deleteProject won't refuse last job
+          get().createProject({
+            name: "New production job",
+            jobNumber: "JOB-001",
+            client: "TBD",
+            engineer: "TBD",
+            location: "TBD",
+            description: "Empty job — replace demo data.",
+          });
+        }
+        let n = 0;
+        for (const p of toRemove) {
+          if (get().deleteProject(p.id)) n += 1;
+        }
+        return n;
       },
 
       resetDemoData: () => {
