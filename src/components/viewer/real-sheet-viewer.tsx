@@ -22,11 +22,13 @@ type Props = {
 };
 
 /**
- * View a real uploaded drawing (PDF or image) with pan/zoom/fullscreen.
+ * View a real uploaded drawing (PDF or image) with pan / zoom / scroll / fullscreen.
+ * PDFs are rendered via pdf.js (not iframe) so zoomed sheets can be panned.
  */
 export function RealSheetViewer({ asset, title, onClear, className }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(rootRef);
   const isPdf =
     asset.mime === "application/pdf" ||
@@ -35,44 +37,241 @@ export function RealSheetViewer({ asset, title, onClear, className }: Props) {
 
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [pageCount, setPageCount] = useState(1);
+  const [pageIndex, setPageIndex] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [renderError, setRenderError] = useState<string | null>(null);
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+  const pdfCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const spaceDown = useRef(false);
   const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(
     null,
   );
-  const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null);
 
+  // Reset view when asset changes
   useEffect(() => {
     setScale(1);
     setOffset({ x: 0, y: 0 });
-    setImgSize(null);
+    setPageIndex(1);
+    setNatural(null);
+    setRenderError(null);
+  }, [asset.url]);
+
+  // Space = temporary pan mode (CAD-style)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" && !e.repeat) {
+        e.preventDefault();
+        spaceDown.current = true;
+        if (wrapRef.current) wrapRef.current.style.cursor = "grab";
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        spaceDown.current = false;
+        if (wrapRef.current) wrapRef.current.style.cursor = "";
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, []);
+
+  // Load image natural size
+  useEffect(() => {
     if (!isImage) return;
     const img = new Image();
-    img.onload = () => setImgSize({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onload = () => setNatural({ w: img.naturalWidth, h: img.naturalHeight });
     img.src = asset.url;
   }, [asset.url, isImage]);
 
+  // Render PDF page to offscreen bitmap, then display via canvas in content
+  useEffect(() => {
+    if (!isPdf) return;
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      setRenderError(null);
+      try {
+        const pdfjs = await import("pdfjs-dist");
+        if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+          pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+            "pdfjs-dist/build/pdf.worker.min.mjs",
+            import.meta.url,
+          ).toString();
+        }
+        const res = await fetch(asset.url);
+        const data = new Uint8Array(await res.arrayBuffer());
+        const doc = await pdfjs.getDocument({ data, useSystemFonts: true })
+          .promise;
+        if (cancelled) {
+          try {
+            doc.cleanup();
+          } catch {
+            /* ignore */
+          }
+          return;
+        }
+        setPageCount(doc.numPages);
+        const idx = Math.min(Math.max(1, pageIndex), doc.numPages);
+        const page = await doc.getPage(idx);
+        const base = page.getViewport({ scale: 1 });
+        // High-res bitmap for crisp zoom
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const targetW = Math.min(2800, Math.max(1600, base.width * dpr * 1.5));
+        const renderScale = targetW / base.width;
+        const viewport = page.getViewport({ scale: renderScale });
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        const ctx = canvas.getContext("2d", { alpha: false });
+        if (!ctx) throw new Error("Canvas unavailable");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({
+          canvasContext: ctx,
+          viewport,
+          canvas,
+        }).promise;
+        if (cancelled) return;
+        pdfCanvasRef.current = canvas;
+        // CSS size ~ fit width of wrap at scale 1
+        const wrap = wrapRef.current;
+        const cssW = wrap
+          ? Math.min(wrap.clientWidth - 24, 1200)
+          : Math.min(base.width, 1000);
+        const cssH = cssW * (base.height / base.width);
+        setNatural({ w: cssW, h: cssH });
+        try {
+          doc.cleanup();
+        } catch {
+          /* ignore */
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setRenderError(
+            e instanceof Error ? e.message : "Could not render PDF",
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [asset.url, isPdf, pageIndex]);
+
+  // Paint PDF canvas into display surface when natural size / scale ready
+  useEffect(() => {
+    if (!isPdf || !pdfCanvasRef.current || !natural) return;
+    const display = contentRef.current?.querySelector(
+      "canvas[data-sheet-pdf]",
+    ) as HTMLCanvasElement | null;
+    if (!display) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cssW = natural.w * scale;
+    const cssH = natural.h * scale;
+    display.style.width = `${cssW}px`;
+    display.style.height = `${cssH}px`;
+    display.width = Math.round(cssW * dpr);
+    display.height = Math.round(cssH * dpr);
+    const ctx = display.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.clearRect(0, 0, cssW, cssH);
+    ctx.drawImage(pdfCanvasRef.current, 0, 0, cssW, cssH);
+  }, [isPdf, natural, scale, loading, pageIndex]);
+
   const fit = useCallback(() => {
     const wrap = wrapRef.current;
-    if (!wrap) return;
-    if (isPdf) {
+    if (!wrap || !natural) {
       setScale(1);
       setOffset({ x: 0, y: 0 });
       return;
     }
-    if (!imgSize) return;
     const pad = 24;
-    const sx = (wrap.clientWidth - pad) / imgSize.w;
-    const sy = (wrap.clientHeight - pad) / imgSize.h;
-    const s = Math.min(sx, sy, 1.5);
-    setScale(Math.max(0.1, s));
+    const sx = (wrap.clientWidth - pad) / natural.w;
+    const sy = (wrap.clientHeight - pad) / natural.h;
+    const s = Math.min(sx, sy, 1.25);
+    setScale(Math.max(0.15, s));
     setOffset({
-      x: (wrap.clientWidth - imgSize.w * s) / 2,
-      y: (wrap.clientHeight - imgSize.h * s) / 2,
+      x: Math.max(0, (wrap.clientWidth - natural.w * s) / 2),
+      y: Math.max(0, (wrap.clientHeight - natural.h * s) / 2),
     });
-  }, [imgSize, isPdf]);
+  }, [natural]);
 
   useEffect(() => {
-    fit();
-  }, [fit, isFullscreen]);
+    if (natural) fit();
+  }, [natural, isFullscreen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function zoomBy(delta: number, clientX?: number, clientY?: number) {
+    const wrap = wrapRef.current;
+    setScale((prev) => {
+      const next = Math.min(6, Math.max(0.15, prev + delta));
+      if (wrap && clientX != null && clientY != null && natural) {
+        const rect = wrap.getBoundingClientRect();
+        const mx = clientX - rect.left;
+        const my = clientY - rect.top;
+        // Keep point under cursor stable
+        setOffset((off) => {
+          const wx = (mx - off.x) / prev;
+          const wy = (my - off.y) / prev;
+          return {
+            x: mx - wx * next,
+            y: my - wy * next,
+          };
+        });
+      }
+      return next;
+    });
+  }
+
+  function onPointerDown(e: React.PointerEvent) {
+    if (e.button !== 0 && e.button !== 1) return;
+    // Left-drag always pans when zoomed or space held; middle always pans
+    const canPan = e.button === 1 || spaceDown.current || scale > 1.02;
+    if (!canPan && e.button === 0) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    drag.current = {
+      x: e.clientX,
+      y: e.clientY,
+      ox: offset.x,
+      oy: offset.y,
+    };
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    if (!drag.current) return;
+    setOffset({
+      x: drag.current.ox + (e.clientX - drag.current.x),
+      y: drag.current.oy + (e.clientY - drag.current.y),
+    });
+  }
+
+  function onPointerUp() {
+    drag.current = null;
+  }
+
+  function onWheel(e: React.WheelEvent) {
+    e.preventDefault();
+    // Shift+wheel or trackpad horizontal → pan; else zoom toward cursor
+    if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      setOffset((off) => ({
+        x: off.x - (e.deltaX || e.deltaY),
+        y: off.y - (e.deltaX ? e.deltaY : 0),
+      }));
+      return;
+    }
+    zoomBy(e.deltaY > 0 ? -0.12 : 0.12, e.clientX, e.clientY);
+  }
+
+  const showChrome = isPdf || isImage;
 
   return (
     <div
@@ -90,17 +289,44 @@ export function RealSheetViewer({ asset, title, onClear, className }: Props) {
           </div>
           <div className="truncate text-xs text-[var(--color-muted)]">
             {asset.name} · {(asset.size / 1024).toFixed(0)} KB ·{" "}
-            {isPdf ? "PDF" : isImage ? "Image" : asset.mime} · drag pan · scroll
-            zoom
+            {isPdf ? "PDF" : isImage ? "Image" : asset.mime} · drag to pan ·
+            scroll to zoom · Shift+scroll pan · Space+drag pan
           </div>
         </div>
         <div className="flex items-center gap-1">
-          {!isPdf && (
+          {showChrome && (
             <>
+              {isPdf && pageCount > 1 && (
+                <>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    disabled={pageIndex <= 1}
+                    onClick={() => setPageIndex((p) => Math.max(1, p - 1))}
+                    aria-label="Previous page"
+                  >
+                    <Minus className="size-4 rotate-90" />
+                  </Button>
+                  <span className="min-w-[3.5rem] text-center font-mono-num text-xs text-[var(--color-muted)]">
+                    {pageIndex}/{pageCount}
+                  </span>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    disabled={pageIndex >= pageCount}
+                    onClick={() =>
+                      setPageIndex((p) => Math.min(pageCount, p + 1))
+                    }
+                    aria-label="Next page"
+                  >
+                    <Plus className="size-4 rotate-90" />
+                  </Button>
+                </>
+              )}
               <Button
                 size="icon-sm"
                 variant="ghost"
-                onClick={() => setScale((s) => Math.max(0.1, s - 0.1))}
+                onClick={() => zoomBy(-0.15)}
                 aria-label="Zoom out"
               >
                 <Minus className="size-4" />
@@ -111,7 +337,7 @@ export function RealSheetViewer({ asset, title, onClear, className }: Props) {
               <Button
                 size="icon-sm"
                 variant="ghost"
-                onClick={() => setScale((s) => Math.min(4, s + 0.1))}
+                onClick={() => zoomBy(0.15)}
                 aria-label="Zoom in"
               >
                 <Plus className="size-4" />
@@ -166,25 +392,35 @@ export function RealSheetViewer({ asset, title, onClear, className }: Props) {
 
       <div
         ref={wrapRef}
-        className={cn(
-          "relative min-h-0 flex-1 bg-[#1a1c20]",
-          !isPdf && "cursor-grab active:cursor-grabbing",
-        )}
-        onWheel={(e) => {
-          if (isPdf) return;
-          e.preventDefault();
-          setScale((s) =>
-            Math.min(4, Math.max(0.1, s + (e.deltaY > 0 ? -0.08 : 0.08))),
-          );
-        }}
+        className="relative min-h-0 flex-1 touch-none overflow-hidden bg-[#1a1c20] cursor-grab active:cursor-grabbing"
+        onWheel={onWheel}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
       >
-        {isPdf ? (
-          <iframe
-            title={asset.name}
-            src={asset.url}
-            className="absolute inset-0 h-full w-full border-0 bg-white"
-          />
-        ) : isImage ? (
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-[var(--color-muted)]">
+            Rendering sheet…
+          </div>
+        )}
+        {renderError && (
+          <div className="flex h-full items-center justify-center p-6 text-sm text-[var(--color-danger)]">
+            {renderError}
+          </div>
+        )}
+        {isPdf && !renderError && (
+          <div
+            ref={contentRef}
+            className="absolute origin-top-left"
+            style={{
+              transform: `translate(${offset.x}px, ${offset.y}px)`,
+            }}
+          >
+            <canvas data-sheet-pdf className="block bg-white shadow-2xl" />
+          </div>
+        )}
+        {isImage && (
           // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
           <img
             src={asset.url}
@@ -195,29 +431,10 @@ export function RealSheetViewer({ asset, title, onClear, className }: Props) {
               transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
               transformOrigin: "0 0",
             }}
-            onPointerDown={(e) => {
-              if (e.button !== 0) return;
-              (e.target as HTMLElement).setPointerCapture(e.pointerId);
-              drag.current = {
-                x: e.clientX,
-                y: e.clientY,
-                ox: offset.x,
-                oy: offset.y,
-              };
-            }}
-            onPointerMove={(e) => {
-              if (!drag.current) return;
-              setOffset({
-                x: drag.current.ox + (e.clientX - drag.current.x),
-                y: drag.current.oy + (e.clientY - drag.current.y),
-              });
-            }}
-            onPointerUp={() => {
-              drag.current = null;
-            }}
             onDoubleClick={() => void toggleFullscreen()}
           />
-        ) : (
+        )}
+        {!isPdf && !isImage && (
           <div className="flex h-full items-center justify-center gap-2 p-6 text-sm text-[var(--color-muted)]">
             <FileUp className="size-4" />
             Unsupported type {asset.mime}. Use PDF, PNG, or JPG.
