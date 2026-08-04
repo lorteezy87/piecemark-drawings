@@ -33,7 +33,11 @@ export async function attachSheetsFromFiles(opts: {
   const drawingIds: string[] = [];
   const claimed = new Set<string>();
 
-  const { pages: expanded, splitCount } = await expandUploadFiles(opts.files);
+  const titleBlockMap =
+    useAppStore.getState().titleBlockMaps[opts.projectId] ?? null;
+  const { pages: expanded, splitCount } = await expandUploadFiles(opts.files, {
+    titleBlockMap,
+  });
 
   const ensureUploadSet = (): string => {
     if (opts.preferSetId) {
@@ -132,13 +136,24 @@ export async function attachSheetsFromFiles(opts: {
     const used = new Set(pool.map((d) => normalizeSheetNo(d.number)));
     const { number, title } = resolveNumberAndTitle(page, used);
     const setId = ensureUploadSet();
-    return useAppStore.getState().createDrawing({
+    const id = useAppStore.getState().createDrawing({
       projectId: opts.projectId,
       setId,
       number,
       title,
       type: "mixed",
     });
+    if (id && page.extractedRev) {
+      const rev = page.extractedRev.trim();
+      if (rev) {
+        useAppStore.setState((s) => ({
+          drawings: s.drawings.map((d) =>
+            d.id === id ? { ...d, currentRev: rev } : d,
+          ),
+        }));
+      }
+    }
+    return id;
   };
 
   for (const page of expanded) {
@@ -183,16 +198,19 @@ export async function attachSheetsFromFiles(opts: {
           continue;
         }
         created += 1;
-      } else if (hit && page.extractedTitle) {
-        // Refresh title on matched empty sheet when we read a better title from the PDF
-        const title = page.extractedTitle.trim();
-        if (title && title !== hit.title) {
-          useAppStore.setState((s) => ({
-            drawings: s.drawings.map((d) =>
-              d.id === hit!.id ? { ...d, title } : d,
-            ),
-          }));
-        }
+      } else if (hit && (page.extractedTitle || page.extractedRev)) {
+        const title = page.extractedTitle?.trim();
+        const rev = page.extractedRev?.trim();
+        useAppStore.setState((s) => ({
+          drawings: s.drawings.map((d) => {
+            if (d.id !== hit!.id) return d;
+            return {
+              ...d,
+              ...(title && title !== d.title ? { title } : {}),
+              ...(rev ? { currentRev: rev } : {}),
+            };
+          }),
+        }));
       }
 
       if (!hit) {

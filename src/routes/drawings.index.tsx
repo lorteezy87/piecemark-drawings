@@ -5,6 +5,7 @@ import { SHEET_UPLOAD_ACCEPT } from "@/components/viewer/real-sheet-viewer";
 import { attachSheetsFromFiles } from "@/lib/attach-sheet";
 import { useMemo, useState } from "react";
 import { SetRegister } from "@/components/drawings/set-register";
+import { TitleBlockMapper } from "@/components/drawings/title-block-mapper";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,7 @@ function DrawingsPage() {
   const setSheetAsset = useAppStore((s) => s.setSheetAsset);
   const allDrawings = useAppStore((s) => s.drawings);
   const [showAdd, setShowAdd] = useState(false);
+  const [showTitleMap, setShowTitleMap] = useState(false);
   const [sheetNo, setSheetNo] = useState("");
   const [sheetTitle, setSheetTitle] = useState("");
   const [setCode, setSetCode] = useState("SET-SHOP");
@@ -80,6 +82,13 @@ function DrawingsPage() {
           <Button size="sm" onClick={() => setShowAdd((v) => !v)}>
             <Plus className="size-3.5" />
             Add sheet
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setShowTitleMap((v) => !v)}
+          >
+            Title-block map
           </Button>
           <label className="inline-flex">
             <Button size="sm" variant="outline" asChild>
@@ -134,6 +143,9 @@ function DrawingsPage() {
       }
     >
       <div className="space-y-4">
+        {showTitleMap && project && (
+          <TitleBlockMapper projectId={project.id} />
+        )}
         {showAdd && project && (
           <div className="panel space-y-3 p-4">
             <h3 className="text-sm font-semibold">New sheet on {project.jobNumber}</h3>

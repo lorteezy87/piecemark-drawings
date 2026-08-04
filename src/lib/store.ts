@@ -36,6 +36,7 @@ import type {
 import { idbDeleteFile, idbPutFile, sheetAssetKey } from "@/lib/idb-files";
 import { newId } from "@/lib/ids";
 import type { JobPackage } from "@/lib/job-package";
+import type { TitleBlockMap } from "@/lib/title-block";
 import { JOB_PACKAGE_VERSION } from "@/lib/job-package";
 import { can, type Permission } from "@/lib/permissions";
 import { toast } from "sonner";
@@ -90,6 +91,8 @@ interface AppState {
   transmittals: Transmittal[];
   activities: ActivityEvent[];
   sheetAssets: Record<string, SheetAsset>;
+  /** Per-job manual title-block field regions for PDF upload extraction */
+  titleBlockMaps: Record<string, TitleBlockMap>;
   selectedProjectId: string | null;
   filters: DrawingFilters;
   setSelectedProjectId: (id: string | null) => void;
@@ -160,6 +163,8 @@ interface AppState {
   setOrgProfile: (input: { orgName?: string; orgRfiEmail?: string }) => void;
   setSheetAsset: (drawingId: string, asset: SheetAsset) => void;
   clearSheetAsset: (drawingId: string) => void;
+  setTitleBlockMap: (map: TitleBlockMap) => void;
+  clearTitleBlockMap: (projectId: string) => void;
   createProject: (input: {
     name: string;
     jobNumber: string;
@@ -286,6 +291,7 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       ...seedState(),
       sheetAssets: {},
+      titleBlockMaps: {},
       setCrewRole: (role) => set({ crewRole: role }),
       setSessionActor: (name) =>
         set({ sessionActor: name.trim() || "Station" }),
@@ -791,7 +797,33 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-      createProject: (input) => {
+      
+      setTitleBlockMap: (map) => {
+        const role = get().crewRole;
+        if (!can(role, "drawing.edit") && !can(role, "drawing.upload")) {
+          toast.error("Not allowed: edit title-block map");
+          return;
+        }
+        set((s) => ({
+          titleBlockMaps: {
+            ...s.titleBlockMaps,
+            [map.projectId]: {
+              ...map,
+              updatedAt: new Date().toISOString(),
+            },
+          },
+        }));
+      },
+
+      clearTitleBlockMap: (projectId) => {
+        set((s) => {
+          const next = { ...s.titleBlockMaps };
+          delete next[projectId];
+          return { titleBlockMaps: next };
+        });
+      },
+
+createProject: (input) => {
         if (deny(get().crewRole, "job.create")) return "";
         const id = newId("proj");
         const project: Project = {
@@ -1350,7 +1382,7 @@ createDrawing: (input) => {
 
       resetDemoData: () => {
         if (deny(get().crewRole, "job.reset")) return;
-        set({ ...seedState(), sheetAssets: {} });
+        set({ ...seedState(), sheetAssets: {}, titleBlockMaps: {} });
       },
     }),
     {
@@ -1393,6 +1425,7 @@ createDrawing: (input) => {
         activities: s.activities,
         selectedProjectId: s.selectedProjectId,
         filters: s.filters,
+        titleBlockMaps: s.titleBlockMaps,
         // sheetAssets intentionally omitted (blob URLs) — restored via IDB/cloud
       }),
     },
