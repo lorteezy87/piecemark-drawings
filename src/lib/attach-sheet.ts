@@ -4,31 +4,26 @@ import {
   normalizeSheetNo,
   suggestNumberFromFile,
 } from "@/lib/sheet-match";
-import { expandUploadFiles } from "@/lib/pdf-split";
+import { expandUploadFiles, type ExpandedPageFile } from "@/lib/pdf-split";
 import { useAppStore } from "@/lib/store";
 import { uploadSheetToServer } from "@/lib/workspace-sync";
 
 export type AttachResult = {
-  /** Files successfully attached (matched or newly created). */
   attached: number;
-  /** How many of those were new register rows. */
   created: number;
-  /** How many multi-page source PDFs were split. */
   splitPdfs: number;
   failed: string[];
-  /** Drawing ids that received a file (in order). */
   drawingIds: string[];
 };
 
 /**
- * Attach one or more PDF/image files.
- * Multi-page PDFs are split into one sheet per page inside the upload set.
+ * Attach PDFs/images. Multi-page PDFs split to one sheet per page.
+ * Page titles/sheet numbers are read from PDF text when present.
  */
 export async function attachSheetsFromFiles(opts: {
   files: File[];
   projectId: string;
   createIfMissing?: boolean;
-  /** Prefer this set for newly created sheets (e.g. current set context). */
   preferSetId?: string;
 }): Promise<AttachResult> {
   const createIfMissing = opts.createIfMissing !== false;
@@ -66,55 +61,84 @@ export async function attachSheetsFromFiles(opts: {
     });
   };
 
-  const createSheetForPage = (optsPage: {
-    file: File;
-    pageIndex: number;
-    pageTotal: number;
-    sourceName: string;
-  }) => {
+  const resolveNumberAndTitle = (page: ExpandedPageFile, used: Set<string>) => {
+    const sourceBase = page.sourceName.replace(/\.[^.]+$/, "");
+    const fileGuess = suggestNumberFromFile(page.file.name, used);
+
+    // Sheet number priority: page text → filename → generated
+    let number: string | null = null;
+    if (
+      page.extractedSheetNo &&
+      !used.has(normalizeSheetNo(page.extractedSheetNo))
+    ) {
+      number = page.extractedSheetNo;
+    } else if (fileGuess && !used.has(normalizeSheetNo(fileGuess))) {
+      // For multi-page, avoid applying the same parent sheet no to every page
+      if (page.pageTotal <= 1) {
+        number = fileGuess;
+      } else if (
+        page.extractedSheetNo &&
+        normalizeSheetNo(fileGuess) !== normalizeSheetNo(page.extractedSheetNo)
+      ) {
+        number = fileGuess;
+      }
+    }
+
+    if (!number) {
+      const base =
+        page.extractedSheetNo ||
+        suggestNumberFromFile(page.sourceName, new Set()) ||
+        sourceBase
+          .replace(/[^A-Za-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")
+          .slice(0, 18)
+          .toUpperCase() ||
+        "SHEET";
+      if (page.pageTotal > 1) {
+        number = `${base}-P${page.pageIndex}`;
+      } else {
+        number = base;
+      }
+      if (used.has(normalizeSheetNo(number))) {
+        number = `${number}-${Date.now().toString(36).slice(-3)}`;
+      }
+    }
+
+    // Title priority: extracted page title → cleaned source name + page
+    let title =
+      (page.extractedTitle && page.extractedTitle.trim()) ||
+      null;
+    if (title && page.extractedSheetNo) {
+      // Avoid title that is only the sheet number
+      if (normalizeSheetNo(title) === normalizeSheetNo(page.extractedSheetNo)) {
+        title = null;
+      }
+    }
+    if (!title) {
+      const fallback = sourceBase.replace(/[_]+/g, " ").trim();
+      title =
+        page.pageTotal > 1
+          ? `${fallback} · p.${page.pageIndex}/${page.pageTotal}`
+          : fallback || number;
+    }
+
+    return { number, title };
+  };
+
+  const createSheetForPage = (page: ExpandedPageFile) => {
     const pool = useAppStore
       .getState()
       .drawings.filter((d) => d.projectId === opts.projectId);
     const used = new Set(pool.map((d) => normalizeSheetNo(d.number)));
-
-    // Prefer sheet number from original multi-page name, then page suffix
-    const sourceBase = optsPage.sourceName.replace(/\.[^.]+$/, "");
-    let number: string;
-    if (optsPage.pageTotal > 1) {
-      const baseGuess =
-        suggestNumberFromFile(optsPage.sourceName, new Set()) ||
-        sourceBase
-          .replace(/[^A-Za-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "")
-          .slice(0, 20)
-          .toUpperCase() ||
-        "SHEET";
-      number = `${baseGuess}-P${optsPage.pageIndex}`;
-      if (used.has(normalizeSheetNo(number))) {
-        number = `${baseGuess}-P${optsPage.pageIndex}-${Date.now().toString(36).slice(-3)}`;
-      }
-    } else {
-      number = suggestNumberFromFile(optsPage.file.name, used);
-      if (used.has(normalizeSheetNo(number))) {
-        number = `${number}-${Date.now().toString(36).slice(-4)}`;
-      }
-    }
-
-    const titleBase = sourceBase.replace(/[_]+/g, " ").trim();
-    const title =
-      optsPage.pageTotal > 1
-        ? `${titleBase} · p.${optsPage.pageIndex}/${optsPage.pageTotal}`
-        : titleBase || number;
-
+    const { number, title } = resolveNumberAndTitle(page, used);
     const setId = ensureUploadSet();
-    const id = useAppStore.getState().createDrawing({
+    return useAppStore.getState().createDrawing({
       projectId: opts.projectId,
       setId,
       number,
-      title: title || number,
+      title,
       type: "mixed",
     });
-    return id;
   };
 
   for (const page of expanded) {
@@ -123,16 +147,27 @@ export async function attachSheetsFromFiles(opts: {
         .getState()
         .drawings.filter((d) => d.projectId === opts.projectId);
 
-      // Only exact-match first page of a multi-page split to an empty register row
-      let hit =
-        page.pageTotal === 1 || page.pageIndex === 1
-          ? matchDrawingByFileName(pool, page.sourceName, { strict: true })
-          : null;
-
-      if (hit && claimed.has(hit.id)) hit = null;
-      if (hit) {
-        const existing = useAppStore.getState().sheetAssets[hit.id];
-        if (existing?.url) hit = null;
+      // Match empty register row by extracted sheet no or filename
+      let hit: (typeof pool)[number] | null = null;
+      if (page.extractedSheetNo) {
+        const want = normalizeSheetNo(page.extractedSheetNo);
+        hit =
+          pool.find(
+            (d) =>
+              normalizeSheetNo(d.number) === want && !claimed.has(d.id),
+          ) ?? null;
+        if (hit) {
+          const existing = useAppStore.getState().sheetAssets[hit.id];
+          if (existing?.url) hit = null;
+        }
+      }
+      if (!hit && (page.pageTotal === 1 || page.pageIndex === 1)) {
+        hit = matchDrawingByFileName(pool, page.sourceName, { strict: true });
+        if (hit && claimed.has(hit.id)) hit = null;
+        if (hit) {
+          const existing = useAppStore.getState().sheetAssets[hit.id];
+          if (existing?.url) hit = null;
+        }
       }
 
       if (!hit && createIfMissing) {
@@ -148,6 +183,16 @@ export async function attachSheetsFromFiles(opts: {
           continue;
         }
         created += 1;
+      } else if (hit && page.extractedTitle) {
+        // Refresh title on matched empty sheet when we read a better title from the PDF
+        const title = page.extractedTitle.trim();
+        if (title && title !== hit.title) {
+          useAppStore.setState((s) => ({
+            drawings: s.drawings.map((d) =>
+              d.id === hit!.id ? { ...d, title } : d,
+            ),
+          }));
+        }
       }
 
       if (!hit) {
@@ -168,7 +213,7 @@ export async function attachSheetsFromFiles(opts: {
           blob: page.file,
         });
       } catch {
-        /* local IDB still has the file */
+        /* local only */
       }
 
       attached += 1;

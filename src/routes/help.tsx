@@ -53,7 +53,7 @@ const steps = [
     body: [
       "Open Drawing Sets.",
       "Add sheet: enter set code (e.g. SET-SHOP), sheet number (E-101), title → create.",
-      "Or Upload PDFs: multi-page PDFs split into one sheet per page; multi-select also creates one sheet per file. Names like E-101.pdf match empty sheets; otherwise new rows under SET-UPLOAD.",
+      "Or Upload PDFs: multi-page PDFs split into one sheet per page; titles and sheet numbers are read from each page’s title block when the PDF has text. Multi-select also creates one sheet per file.",
       "Delete set removes the whole package; trash icon on a row deletes one sheet.",
     ],
   },
