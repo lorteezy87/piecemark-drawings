@@ -10,7 +10,6 @@ import { useMemo, useState } from "react";
 import {
   RealSheetViewer,
   SHEET_UPLOAD_ACCEPT,
-  fileToSheetAsset,
 } from "@/components/viewer/real-sheet-viewer";
 import { IfcModelViewer } from "@/components/viewer/ifc-model-viewer";
 import type { IfcPickInfo } from "@/lib/ifc-loader";
@@ -21,7 +20,6 @@ import { Select } from "@/components/ui/select";
 import { useAppStore, useSelectedProject } from "@/lib/store";
 import { toast } from "sonner";
 import { attachSheetsFromFiles } from "@/lib/attach-sheet";
-import { uploadSheetToServer } from "@/lib/workspace-sync";
 import { DRAWING_TYPE_LABELS } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -92,66 +90,22 @@ function ViewerPage() {
   const sheetAsset = drawing ? sheetAssets[drawing.id] : undefined;
   const showRealSheet = !!sheetAsset;
 
-  async function onUploadSheet(file: File | null) {
-    if (!file || !project) return;
-    setUploadError(null);
-    // Prefer currently selected sheet; otherwise auto-match or create a row.
-    if (drawing) {
-      try {
-        const asset = await fileToSheetAsset(drawing.id, file);
-        setSheetAsset(drawing.id, asset);
-                setMode("sheet");
-        setSplit(false);
-        const remote = await uploadSheetToServer({
-          drawingId: drawing.id,
-          name: file.name,
-          mime: asset.mime,
-          blob: file,
-        });
-        if (remote.ok) {
-          toast.success(`Attached to ${drawing.number}`);
-        } else {
-          toast.message(`Saved on ${drawing.number} · ${remote.reason}`);
-        }
-      } catch (e) {
-        setUploadError(e instanceof Error ? e.message : "Upload failed");
+  async function reportAttach(
+    result: Awaited<ReturnType<typeof attachSheetsFromFiles>>,
+  ) {
+    if (result.attached) {
+      const bits: string[] = [`Attached ${result.attached} sheet(s)`];
+      if (result.splitPdfs > 0) {
+        bits.push(
+          `split ${result.splitPdfs} multi-page PDF(s) into one sheet per page`,
+        );
       }
-      return;
-    }
-    const result = await attachSheetsFromFiles({
-      files: [file],
-      projectId: project.id,
-      createIfMissing: true,
-    });
-    if (result.attached) {
-      toast.success(
-        result.created
-          ? "Created sheet row and attached file"
-          : "Matched file to a sheet",
-      );
-            setMode("sheet");
-    } else if (result.failed.length) {
-      setUploadError(result.failed[0] ?? "Upload failed");
-    }
-  }
-
-  async function onBulkUploadSheets(files: FileList | null) {
-    if (!files?.length || !project) return;
-    setUploadError(null);
-    const result = await attachSheetsFromFiles({
-      files: Array.from(files),
-      projectId: project.id,
-      createIfMissing: true,
-    });
-    if (result.attached) {
-      const extra =
-        result.created > 0
-          ? ` (${result.created} new sheet row(s) created)`
-          : "";
-      toast.success(`Attached ${result.attached} file(s)${extra}`);
+      if (result.created > 0) bits.push(`${result.created} new row(s)`);
+      toast.success(bits.join(" · "));
       setMode("sheet");
-      const lastId = result.drawingIds?.[result.drawingIds.length - 1];
-      if (lastId) setDrawingId(lastId);
+      setSplit(false);
+      const firstId = result.drawingIds[0];
+      if (firstId) setDrawingId(firstId);
     }
     if (result.failed.length) {
       toast.message(
@@ -159,6 +113,42 @@ function ViewerPage() {
           result.failed.length > 3 ? "…" : ""
         }`,
       );
+      if (!result.attached) {
+        setUploadError(result.failed[0] ?? "Upload failed");
+      }
+    }
+  }
+
+  async function onUploadSheet(file: File | null) {
+    if (!file || !project) return;
+    setUploadError(null);
+    // Always go through attach (splits multi-page PDFs into one sheet each)
+    try {
+      const result = await attachSheetsFromFiles({
+        files: [file],
+        projectId: project.id,
+        createIfMissing: true,
+        preferSetId: drawing?.setId,
+      });
+      await reportAttach(result);
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Upload failed");
+    }
+  }
+
+  async function onBulkUploadSheets(files: FileList | null) {
+    if (!files?.length || !project) return;
+    setUploadError(null);
+    try {
+      const result = await attachSheetsFromFiles({
+        files: Array.from(files),
+        projectId: project.id,
+        createIfMissing: true,
+        preferSetId: drawing?.setId,
+      });
+      await reportAttach(result);
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Upload failed");
     }
   }
 
@@ -344,8 +334,7 @@ function ViewerPage() {
                   />
                 </label>
                 <p className="text-[10px] leading-relaxed text-[var(--color-subtle)]">
-                  Any filename works. Names containing a sheet number (E-101, S301,
-                  CD_18) attach to that register row; otherwise a new sheet is created.
+                  Any filename works. Multi-page PDFs become one sheet per page. Names with a sheet number (E-101, S301) match when empty; otherwise new rows are created.
                 </p>
                 {sheetAsset && (
                   <div className="space-y-1.5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-2 text-[11px] text-[var(--color-muted)]">
@@ -402,7 +391,7 @@ function ViewerPage() {
           <div className="panel p-4 text-xs leading-relaxed text-[var(--color-muted)]">
             <strong className="text-[var(--color-fg)]">Real drawings + IFC only</strong>
             <p className="mt-1.5">
-              Upload shop/erection PDFs (multi-select creates one sheet per file).
+              Upload shop/erection PDFs — multi-page PDFs split into one sheet per page; multi-select also creates one sheet per file.
               IFC: upload your job model (.ifc / .ifczip). No sample sheets or
               demo models are loaded.
             </p>

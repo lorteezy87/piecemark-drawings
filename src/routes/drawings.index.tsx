@@ -106,12 +106,14 @@ function DrawingsPage() {
                     createIfMissing: true,
                   });
                   if (result.attached) {
-                    toast.success(
-                      `Attached ${result.attached} file(s)` +
-                        (result.created
-                          ? ` · ${result.created} new sheet(s) created`
-                          : ""),
-                    );
+                    const bits = [`Attached ${result.attached} sheet(s)`];
+                    if (result.splitPdfs)
+                      bits.push(
+                        `split ${result.splitPdfs} multi-page PDF(s)`,
+                      );
+                    if (result.created)
+                      bits.push(`${result.created} new row(s)`);
+                    toast.success(bits.join(" · "));
                   }
                   if (result.failed.length) {
                     toast.message(
