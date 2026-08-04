@@ -40,6 +40,8 @@ function DrawingsPage() {
   const allDrawings = useAppStore((s) => s.drawings);
   const [showAdd, setShowAdd] = useState(false);
   const [showTitleMap, setShowTitleMap] = useState(false);
+  const [pendingUpload, setPendingUpload] = useState<File[] | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [sheetNo, setSheetNo] = useState("");
   const [sheetTitle, setSheetTitle] = useState("");
   const [setCode, setSetCode] = useState("SET-SHOP");
@@ -106,31 +108,15 @@ function DrawingsPage() {
               className="sr-only"
               aria-label="Upload drawing PDFs"
               onChange={(e) => {
-                void (async () => {
-                  const files = e.target.files;
-                  if (!files?.length || !project) return;
-                  const result = await attachSheetsFromFiles({
-                    files: Array.from(files),
-                    projectId: project.id,
-                    createIfMissing: true,
-                  });
-                  if (result.attached) {
-                    const bits = [`Attached ${result.attached} sheet(s)`];
-                    if (result.splitPdfs)
-                      bits.push(
-                        `split ${result.splitPdfs} multi-page PDF(s)`,
-                      );
-                    if (result.created)
-                      bits.push(`${result.created} new row(s)`);
-                    toast.success(bits.join(" · "));
-                  }
-                  if (result.failed.length) {
-                    toast.message(
-                      `Failed: ${result.failed.slice(0, 3).join(", ")}`,
-                    );
-                  }
-                  e.target.value = "";
-                })();
+                const files = e.target.files;
+                if (!files?.length || !project) return;
+                const list = Array.from(files);
+                setPendingUpload(list);
+                setShowTitleMap(true);
+                toast.message(
+                  "Map Title / Sheet no. / Rev on this set, then Save & continue",
+                );
+                e.target.value = "";
               }}
             />
           </label>
@@ -144,7 +130,91 @@ function DrawingsPage() {
     >
       <div className="space-y-4">
         {showTitleMap && project && (
-          <TitleBlockMapper projectId={project.id} />
+          <TitleBlockMapper
+            projectId={project.id}
+            seedFiles={pendingUpload}
+            confirmLabel={
+              pendingUpload?.length
+                ? `Save & upload ${pendingUpload.length} file(s)`
+                : undefined
+            }
+            onSkip={
+              pendingUpload?.length
+                ? () => {
+                    void (async () => {
+                      if (!pendingUpload || !project) return;
+                      setUploading(true);
+                      try {
+                        const result = await attachSheetsFromFiles({
+                          files: pendingUpload,
+                          projectId: project.id,
+                          createIfMissing: true,
+                        });
+                        const bits: string[] = [];
+                        if (result.attached)
+                          bits.push(`Attached ${result.attached} sheet(s)`);
+                        if (result.splitPdfs)
+                          bits.push(
+                            `split ${result.splitPdfs} multi-page PDF(s)`,
+                          );
+                        if (result.created)
+                          bits.push(`${result.created} new row(s)`);
+                        if (bits.length) toast.success(bits.join(" · "));
+                        if (result.failed.length)
+                          toast.message(
+                            `Failed: ${result.failed.slice(0, 3).join(", ")}`,
+                          );
+                      } finally {
+                        setPendingUpload(null);
+                        setUploading(false);
+                        setShowTitleMap(false);
+                      }
+                    })();
+                  }
+                : undefined
+            }
+            onSaved={(map) => {
+              void (async () => {
+                if (!pendingUpload?.length || !project) {
+                  toast.success("Title-block map saved for this job");
+                  return;
+                }
+                setUploading(true);
+                try {
+                  // ensure map is on store before attach
+                  useAppStore.getState().setTitleBlockMap(map);
+                  const result = await attachSheetsFromFiles({
+                    files: pendingUpload,
+                    projectId: project.id,
+                    createIfMissing: true,
+                  });
+                  const bits: string[] = [
+                    "Mapped from this set",
+                  ];
+                  if (result.attached)
+                    bits.push(`${result.attached} sheet(s)`);
+                  if (result.splitPdfs)
+                    bits.push(`split ${result.splitPdfs} multi-page PDF(s)`);
+                  if (result.created)
+                    bits.push(`${result.created} new row(s)`);
+                  toast.success(bits.join(" · "));
+                  if (result.failed.length)
+                    toast.message(
+                      `Failed: ${result.failed.slice(0, 3).join(", ")}`,
+                    );
+                } finally {
+                  setPendingUpload(null);
+                  setUploading(false);
+                  setShowTitleMap(false);
+                }
+              })();
+            }}
+          />
+        )}
+        {uploading && (
+          <div className="text-sm text-[var(--color-muted)]">
+            Processing set (split pages + title-block extract)…
+          </div>
         )}
         {showAdd && project && (
           <div className="panel space-y-3 p-4">
