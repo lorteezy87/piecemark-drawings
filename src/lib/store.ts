@@ -206,6 +206,8 @@ interface AppState {
     type: DrawingType;
     discipline?: Discipline;
     sequenceId?: string;
+    /** "upload" = created as part of attaching a sheet file (see attach-sheet). */
+    via?: "upload";
   }) => string;
   deleteDrawing: (drawingId: string) => boolean;
   deleteDrawingSet: (setId: string) => boolean;
@@ -223,6 +225,8 @@ interface AppState {
     sequenceId?: string;
     pieceMarks?: string[];
     sheetSize?: Drawing["sheetSize"];
+    /** "upload" = created as part of attaching a sheet file (see attach-sheet). */
+    via?: "upload";
   }) => string;
   exportPackage: () => JobPackage;
   importPackage: (pkg: JobPackage, mode?: "replace" | "merge") => void;
@@ -1104,7 +1108,10 @@ export const useAppStore = create<AppState>()(
       },
 
       createDrawingSet: (input) => {
-        if (deny(get().crewRole, "drawing.edit")) return "";
+        // Shop/field stations hold "drawing.upload" but not "drawing.edit".
+        // Attaching a sheet has to be able to open the row it lands on.
+        const setPerm = input.via === "upload" ? "drawing.upload" : "drawing.edit";
+        if (deny(get().crewRole, setPerm)) return "";
         const id = newId("set");
         const drawingSet: DrawingSet = {
           id,
@@ -1173,7 +1180,8 @@ export const useAppStore = create<AppState>()(
       },
 
       createDrawing: (input) => {
-        if (deny(get().crewRole, "drawing.edit")) return "";
+        const perm = input.via === "upload" ? "drawing.upload" : "drawing.edit";
+        if (deny(get().crewRole, perm)) return "";
         const id = newId("dwg");
         const sheets = get().drawings.filter((d) => d.setId === input.setId);
         const drawing: Drawing = {

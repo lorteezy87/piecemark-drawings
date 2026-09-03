@@ -20,6 +20,7 @@ import {
   emptyTitleBlockMap,
   hasAnyRegion,
 } from "@/lib/title-block";
+import { destroyPdf, loadPdfjs } from "@/lib/pdfjs";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -71,6 +72,7 @@ export function TitleBlockMapper({
   );
   const [pageReady, setPageReady] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sampleError, setSampleError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [pageCount, setPageCount] = useState(1);
   const [viewZoom, setViewZoom] = useState(1);
@@ -136,18 +138,17 @@ export function TitleBlockMapper({
     if (!file) return;
     setLoading(true);
     setPageReady(false);
+    setSampleError(null);
     setFileName(file.name);
+    // Only the rendered bitmap is kept; the parsed PDF and its worker are
+    // released in `finally` whether the page rendered or the file was unreadable.
+    let task: { destroy(): Promise<void> } | null = null;
     try {
-      const pdfjs = await import("pdfjs-dist");
-      if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-        pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-          "pdfjs-dist/build/pdf.worker.min.mjs",
-          import.meta.url,
-        ).toString();
-      }
+      const pdfjs = await loadPdfjs();
       const buf = new Uint8Array(await file.arrayBuffer());
-      const doc = await pdfjs.getDocument({ data: buf, useSystemFonts: true })
-        .promise;
+      const loadingTask = pdfjs.getDocument({ data: buf, useSystemFonts: true });
+      task = loadingTask;
+      const doc = await loadingTask.promise;
       setPageCount(doc.numPages);
       const pageIndex = Math.min(
         Math.max(1, opts?.pageIndex ?? 1),
@@ -179,12 +180,6 @@ export function TitleBlockMapper({
         canvas: bg,
       }).promise;
 
-      try {
-        doc.cleanup();
-      } catch {
-        /* ignore */
-      }
-
       bitmapRef.current = { bg, cssW, cssH };
       setViewZoom(1);
       setLocal((m) => ({
@@ -200,8 +195,11 @@ export function TitleBlockMapper({
         wrap.scrollTop = Math.max(0, cssH - wrap.clientHeight);
       });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not open PDF");
+      const msg = e instanceof Error ? e.message : "Could not open PDF";
+      setSampleError(msg);
+      toast.error(`Could not open ${file.name} for mapping — ${msg}`);
     } finally {
+      await destroyPdf(task);
       setLoading(false);
     }
   }
@@ -284,6 +282,9 @@ export function TitleBlockMapper({
   }
 
   const inUploadFlow = !!seedFiles?.length;
+  // Sample page won't render (encrypted/corrupt PDF, out of memory): mapping is
+  // impossible, so the upload must not be held hostage to it.
+  const blocked = inUploadFlow && !!sampleError && !pageReady;
 
   return (
     <div className={cn("panel space-y-3 p-4", className)}>
@@ -347,18 +348,24 @@ export function TitleBlockMapper({
           <span className="inline-flex h-8 items-center font-mono-num text-[11px] text-[var(--color-muted)]">
             {Math.round(viewZoom * 100)}%
           </span>
-          <Button
-            size="sm"
-            onClick={save}
-            disabled={!pageReady && !hasAnyRegion(local)}
-          >
-            <Save className="size-3.5" />
-            {confirmLabel ?? (inUploadFlow ? "Save & continue upload" : "Save map")}
-          </Button>
+          {!blocked && (
+            <Button
+              size="sm"
+              onClick={save}
+              disabled={!pageReady && !hasAnyRegion(local)}
+            >
+              <Save className="size-3.5" />
+              {confirmLabel ?? (inUploadFlow ? "Save & continue upload" : "Save map")}
+            </Button>
+          )}
           {inUploadFlow && onSkip && (
-            <Button size="sm" variant="secondary" onClick={onSkip}>
+            <Button
+              size="sm"
+              variant={blocked ? "default" : "secondary"}
+              onClick={onSkip}
+            >
               <Upload className="size-3.5" />
-              Skip map · upload anyway
+              {blocked ? "Upload without mapping" : "Skip map · upload anyway"}
             </Button>
           )}
           {!inUploadFlow && (
@@ -460,9 +467,18 @@ export function TitleBlockMapper({
         />
         {!pageReady && !loading && (
           <div className="flex min-h-[200px] items-center justify-center px-4 py-10 text-center text-sm text-[var(--color-muted)]">
-            {inUploadFlow
-              ? "Loading first page of the set…"
-              : "Load a sample PDF, or use Upload PDFs to map off the set you submit."}
+            {sampleError ? (
+              <span className="max-w-lg text-[var(--color-danger)]">
+                Could not render {fileName ?? "this PDF"} for mapping ({sampleError}).
+                {inUploadFlow
+                  ? " Your files are still staged — use Upload without mapping to attach them now."
+                  : " Try another sample sheet."}
+              </span>
+            ) : inUploadFlow ? (
+              "Loading first page of the set…"
+            ) : (
+              "Load a sample PDF, or use Upload PDFs to map off the set you submit."
+            )}
           </div>
         )}
         {loading && (

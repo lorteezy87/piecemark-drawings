@@ -1,4 +1,5 @@
 import { PDFDocument } from "pdf-lib";
+import { destroyPdf, loadPdfjs } from "@/lib/pdfjs";
 import { guessSheetCandidates, normalizeSheetNo } from "@/lib/sheet-match";
 import {
   hasAnyRegion,
@@ -183,16 +184,7 @@ async function extractAllPageMeta(
   map?: TitleBlockMap | null,
 ): Promise<PageMeta[]> {
   try {
-    const pdfjs = await import("pdfjs-dist");
-    if (typeof window !== "undefined") {
-      const { GlobalWorkerOptions } = pdfjs;
-      if (!GlobalWorkerOptions.workerSrc) {
-        GlobalWorkerOptions.workerSrc = new URL(
-          "pdfjs-dist/build/pdf.worker.min.mjs",
-          import.meta.url,
-        ).toString();
-      }
-    }
+    const pdfjs = await loadPdfjs();
 
     const copy = new Uint8Array(data.byteLength);
     copy.set(data);
@@ -201,10 +193,10 @@ async function extractAllPageMeta(
       data: copy,
       useSystemFonts: true,
     });
-    const doc = await loadingTask.promise;
     const out: PageMeta[] = [];
     const useMap = hasAnyRegion(map) ? map! : null;
     try {
+      const doc = await loadingTask.promise;
       for (let i = 1; i <= doc.numPages; i++) {
         const page = await doc.getPage(i);
         const viewport = page.getViewport({ scale: 1 });
@@ -236,11 +228,7 @@ async function extractAllPageMeta(
         );
       }
     } finally {
-      try {
-        doc.cleanup();
-      } catch {
-        /* ignore */
-      }
+      await destroyPdf(loadingTask);
     }
     return out;
   } catch (e) {

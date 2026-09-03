@@ -131,6 +131,9 @@ export default defineConfig(({ command }) => ({
     strictPort: true,
   },
   resolve: { tsconfigPaths: true },
+  // pdf.js spawns its worker with `new Worker(url, { type: "module" })`; emit
+  // Vite-bundled workers (see src/lib/pdfjs.ts) in the matching format.
+  worker: { format: "es" },
   plugins: [
     pgliteBootstrapPlugin(),
     // Before tanstackStart so /auth/popup never falls through to the SPA.

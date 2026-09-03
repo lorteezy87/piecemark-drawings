@@ -11,6 +11,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useFullscreen } from "@/hooks/use-fullscreen";
+import { destroyPdf, loadPdfjs } from "@/lib/pdfjs";
 import type { SheetAsset } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -95,26 +96,18 @@ export function RealSheetViewer({ asset, title, onClear, className }: Props) {
     void (async () => {
       setLoading(true);
       setRenderError(null);
+      // Only the rendered bitmap outlives this effect; the parsed document and
+      // its worker are released in `finally` on every exit path (done,
+      // cancelled, or the file failed to load).
+      let task: { destroy(): Promise<void> } | null = null;
       try {
-        const pdfjs = await import("pdfjs-dist");
-        if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-          pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-            "pdfjs-dist/build/pdf.worker.min.mjs",
-            import.meta.url,
-          ).toString();
-        }
+        const pdfjs = await loadPdfjs();
         const res = await fetch(asset.url);
         const data = new Uint8Array(await res.arrayBuffer());
-        const doc = await pdfjs.getDocument({ data, useSystemFonts: true })
-          .promise;
-        if (cancelled) {
-          try {
-            doc.cleanup();
-          } catch {
-            /* ignore */
-          }
-          return;
-        }
+        const loadingTask = pdfjs.getDocument({ data, useSystemFonts: true });
+        task = loadingTask;
+        const doc = await loadingTask.promise;
+        if (cancelled) return;
         setPageCount(doc.numPages);
         const idx = Math.min(Math.max(1, pageIndex), doc.numPages);
         const page = await doc.getPage(idx);
@@ -145,11 +138,6 @@ export function RealSheetViewer({ asset, title, onClear, className }: Props) {
           : Math.min(base.width, 1000);
         const cssH = cssW * (base.height / base.width);
         setNatural({ w: cssW, h: cssH });
-        try {
-          doc.cleanup();
-        } catch {
-          /* ignore */
-        }
       } catch (e) {
         if (!cancelled) {
           setRenderError(
@@ -157,6 +145,7 @@ export function RealSheetViewer({ asset, title, onClear, className }: Props) {
           );
         }
       } finally {
+        await destroyPdf(task);
         if (!cancelled) setLoading(false);
       }
     })();
