@@ -10,21 +10,28 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ChangeOrdersRouteImport } from './routes/change-orders'
+import { Route as DeliveriesRouteImport } from './routes/deliveries'
 import { Route as DrawingsRouteImport } from './routes/drawings'
 import { Route as FieldRouteImport } from './routes/field'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as HoldsRouteImport } from './routes/holds'
 import { Route as IdsRouteImport } from './routes/ids'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LookaheadRouteImport } from './routes/lookahead'
 import { Route as PiecesRouteImport } from './routes/pieces'
+import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as RfisRouteImport } from './routes/rfis'
+import { Route as RoadblocksRouteImport } from './routes/roadblocks'
 import { Route as SequencesRouteImport } from './routes/sequences'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as SubmittalsRouteImport } from './routes/submittals'
+import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as TransmittalsRouteImport } from './routes/transmittals'
 import { Route as ViewerRouteImport } from './routes/viewer'
+import { Route as WorkPackagesRouteImport } from './routes/work-packages'
 import { Route as DrawingsIndexRouteImport } from './routes/drawings.index'
 import { Route as DrawingsDrawingIdRouteImport } from './routes/drawings.$drawingId'
 import { Route as PrintFieldRouteImport } from './routes/print.field'
@@ -36,6 +43,16 @@ import { Route as PrintTransmittalTrIdRouteImport } from './routes/print.transmi
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChangeOrdersRoute = ChangeOrdersRouteImport.update({
+  id: '/change-orders',
+  path: '/change-orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DeliveriesRoute = DeliveriesRouteImport.update({
+  id: '/deliveries',
+  path: '/deliveries',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DrawingsRoute = DrawingsRouteImport.update({
@@ -68,9 +85,19 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LookaheadRoute = LookaheadRouteImport.update({
+  id: '/lookahead',
+  path: '/lookahead',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PiecesRoute = PiecesRouteImport.update({
   id: '/pieces',
   path: '/pieces',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortfolioRoute = PortfolioRouteImport.update({
+  id: '/portfolio',
+  path: '/portfolio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsRoute = ProjectsRouteImport.update({
@@ -81,6 +108,11 @@ const ProjectsRoute = ProjectsRouteImport.update({
 const RfisRoute = RfisRouteImport.update({
   id: '/rfis',
   path: '/rfis',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoadblocksRoute = RoadblocksRouteImport.update({
+  id: '/roadblocks',
+  path: '/roadblocks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SequencesRoute = SequencesRouteImport.update({
@@ -103,6 +135,11 @@ const SubmittalsRoute = SubmittalsRouteImport.update({
   path: '/submittals',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TasksRoute = TasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TransmittalsRoute = TransmittalsRouteImport.update({
   id: '/transmittals',
   path: '/transmittals',
@@ -111,6 +148,11 @@ const TransmittalsRoute = TransmittalsRouteImport.update({
 const ViewerRoute = ViewerRouteImport.update({
   id: '/viewer',
   path: '/viewer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WorkPackagesRoute = WorkPackagesRouteImport.update({
+  id: '/work-packages',
+  path: '/work-packages',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DrawingsIndexRoute = DrawingsIndexRouteImport.update({
@@ -151,21 +193,28 @@ const PrintTransmittalTrIdRoute = PrintTransmittalTrIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/change-orders': typeof ChangeOrdersRoute
+  '/deliveries': typeof DeliveriesRoute
   '/drawings': typeof DrawingsRouteWithChildren
   '/field': typeof FieldRoute
   '/help': typeof HelpRoute
   '/holds': typeof HoldsRoute
   '/ids': typeof IdsRoute
   '/login': typeof LoginRoute
+  '/lookahead': typeof LookaheadRoute
   '/pieces': typeof PiecesRoute
+  '/portfolio': typeof PortfolioRoute
   '/projects': typeof ProjectsRoute
   '/rfis': typeof RfisRoute
+  '/roadblocks': typeof RoadblocksRoute
   '/sequences': typeof SequencesRoute
   '/settings': typeof SettingsRoute
   '/shop': typeof ShopRoute
   '/submittals': typeof SubmittalsRoute
+  '/tasks': typeof TasksRoute
   '/transmittals': typeof TransmittalsRoute
   '/viewer': typeof ViewerRoute
+  '/work-packages': typeof WorkPackagesRoute
   '/drawings/$drawingId': typeof DrawingsDrawingIdRoute
   '/print/field': typeof PrintFieldRoute
   '/print/shop': typeof PrintShopRoute
@@ -176,20 +225,27 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/change-orders': typeof ChangeOrdersRoute
+  '/deliveries': typeof DeliveriesRoute
   '/field': typeof FieldRoute
   '/help': typeof HelpRoute
   '/holds': typeof HoldsRoute
   '/ids': typeof IdsRoute
   '/login': typeof LoginRoute
+  '/lookahead': typeof LookaheadRoute
   '/pieces': typeof PiecesRoute
+  '/portfolio': typeof PortfolioRoute
   '/projects': typeof ProjectsRoute
   '/rfis': typeof RfisRoute
+  '/roadblocks': typeof RoadblocksRoute
   '/sequences': typeof SequencesRoute
   '/settings': typeof SettingsRoute
   '/shop': typeof ShopRoute
   '/submittals': typeof SubmittalsRoute
+  '/tasks': typeof TasksRoute
   '/transmittals': typeof TransmittalsRoute
   '/viewer': typeof ViewerRoute
+  '/work-packages': typeof WorkPackagesRoute
   '/drawings/$drawingId': typeof DrawingsDrawingIdRoute
   '/print/field': typeof PrintFieldRoute
   '/print/shop': typeof PrintShopRoute
@@ -201,21 +257,28 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/change-orders': typeof ChangeOrdersRoute
+  '/deliveries': typeof DeliveriesRoute
   '/drawings': typeof DrawingsRouteWithChildren
   '/field': typeof FieldRoute
   '/help': typeof HelpRoute
   '/holds': typeof HoldsRoute
   '/ids': typeof IdsRoute
   '/login': typeof LoginRoute
+  '/lookahead': typeof LookaheadRoute
   '/pieces': typeof PiecesRoute
+  '/portfolio': typeof PortfolioRoute
   '/projects': typeof ProjectsRoute
   '/rfis': typeof RfisRoute
+  '/roadblocks': typeof RoadblocksRoute
   '/sequences': typeof SequencesRoute
   '/settings': typeof SettingsRoute
   '/shop': typeof ShopRoute
   '/submittals': typeof SubmittalsRoute
+  '/tasks': typeof TasksRoute
   '/transmittals': typeof TransmittalsRoute
   '/viewer': typeof ViewerRoute
+  '/work-packages': typeof WorkPackagesRoute
   '/drawings/$drawingId': typeof DrawingsDrawingIdRoute
   '/print/field': typeof PrintFieldRoute
   '/print/shop': typeof PrintShopRoute
@@ -228,21 +291,28 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/change-orders'
+    | '/deliveries'
     | '/drawings'
     | '/field'
     | '/help'
     | '/holds'
     | '/ids'
     | '/login'
+    | '/lookahead'
     | '/pieces'
+    | '/portfolio'
     | '/projects'
     | '/rfis'
+    | '/roadblocks'
     | '/sequences'
     | '/settings'
     | '/shop'
     | '/submittals'
+    | '/tasks'
     | '/transmittals'
     | '/viewer'
+    | '/work-packages'
     | '/drawings/$drawingId'
     | '/print/field'
     | '/print/shop'
@@ -253,20 +323,27 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/change-orders'
+    | '/deliveries'
     | '/field'
     | '/help'
     | '/holds'
     | '/ids'
     | '/login'
+    | '/lookahead'
     | '/pieces'
+    | '/portfolio'
     | '/projects'
     | '/rfis'
+    | '/roadblocks'
     | '/sequences'
     | '/settings'
     | '/shop'
     | '/submittals'
+    | '/tasks'
     | '/transmittals'
     | '/viewer'
+    | '/work-packages'
     | '/drawings/$drawingId'
     | '/print/field'
     | '/print/shop'
@@ -277,21 +354,28 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/change-orders'
+    | '/deliveries'
     | '/drawings'
     | '/field'
     | '/help'
     | '/holds'
     | '/ids'
     | '/login'
+    | '/lookahead'
     | '/pieces'
+    | '/portfolio'
     | '/projects'
     | '/rfis'
+    | '/roadblocks'
     | '/sequences'
     | '/settings'
     | '/shop'
     | '/submittals'
+    | '/tasks'
     | '/transmittals'
     | '/viewer'
+    | '/work-packages'
     | '/drawings/$drawingId'
     | '/print/field'
     | '/print/shop'
@@ -303,21 +387,28 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ChangeOrdersRoute: typeof ChangeOrdersRoute
+  DeliveriesRoute: typeof DeliveriesRoute
   DrawingsRoute: typeof DrawingsRouteWithChildren
   FieldRoute: typeof FieldRoute
   HelpRoute: typeof HelpRoute
   HoldsRoute: typeof HoldsRoute
   IdsRoute: typeof IdsRoute
   LoginRoute: typeof LoginRoute
+  LookaheadRoute: typeof LookaheadRoute
   PiecesRoute: typeof PiecesRoute
+  PortfolioRoute: typeof PortfolioRoute
   ProjectsRoute: typeof ProjectsRoute
   RfisRoute: typeof RfisRoute
+  RoadblocksRoute: typeof RoadblocksRoute
   SequencesRoute: typeof SequencesRoute
   SettingsRoute: typeof SettingsRoute
   ShopRoute: typeof ShopRoute
   SubmittalsRoute: typeof SubmittalsRoute
+  TasksRoute: typeof TasksRoute
   TransmittalsRoute: typeof TransmittalsRoute
   ViewerRoute: typeof ViewerRoute
+  WorkPackagesRoute: typeof WorkPackagesRoute
   PrintFieldRoute: typeof PrintFieldRoute
   PrintShopRoute: typeof PrintShopRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -331,6 +422,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/change-orders': {
+      id: '/change-orders'
+      path: '/change-orders'
+      fullPath: '/change-orders'
+      preLoaderRoute: typeof ChangeOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/deliveries': {
+      id: '/deliveries'
+      path: '/deliveries'
+      fullPath: '/deliveries'
+      preLoaderRoute: typeof DeliveriesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/drawings': {
@@ -375,11 +480,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lookahead': {
+      id: '/lookahead'
+      path: '/lookahead'
+      fullPath: '/lookahead'
+      preLoaderRoute: typeof LookaheadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pieces': {
       id: '/pieces'
       path: '/pieces'
       fullPath: '/pieces'
       preLoaderRoute: typeof PiecesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portfolio': {
+      id: '/portfolio'
+      path: '/portfolio'
+      fullPath: '/portfolio'
+      preLoaderRoute: typeof PortfolioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/projects': {
@@ -394,6 +513,13 @@ declare module '@tanstack/react-router' {
       path: '/rfis'
       fullPath: '/rfis'
       preLoaderRoute: typeof RfisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/roadblocks': {
+      id: '/roadblocks'
+      path: '/roadblocks'
+      fullPath: '/roadblocks'
+      preLoaderRoute: typeof RoadblocksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sequences': {
@@ -424,6 +550,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SubmittalsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tasks': {
+      id: '/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof TasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/transmittals': {
       id: '/transmittals'
       path: '/transmittals'
@@ -436,6 +569,13 @@ declare module '@tanstack/react-router' {
       path: '/viewer'
       fullPath: '/viewer'
       preLoaderRoute: typeof ViewerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/work-packages': {
+      id: '/work-packages'
+      path: '/work-packages'
+      fullPath: '/work-packages'
+      preLoaderRoute: typeof WorkPackagesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/drawings/': {
@@ -508,21 +648,28 @@ const DrawingsRouteWithChildren = DrawingsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ChangeOrdersRoute: ChangeOrdersRoute,
+  DeliveriesRoute: DeliveriesRoute,
   DrawingsRoute: DrawingsRouteWithChildren,
   FieldRoute: FieldRoute,
   HelpRoute: HelpRoute,
   HoldsRoute: HoldsRoute,
   IdsRoute: IdsRoute,
   LoginRoute: LoginRoute,
+  LookaheadRoute: LookaheadRoute,
   PiecesRoute: PiecesRoute,
+  PortfolioRoute: PortfolioRoute,
   ProjectsRoute: ProjectsRoute,
   RfisRoute: RfisRoute,
+  RoadblocksRoute: RoadblocksRoute,
   SequencesRoute: SequencesRoute,
   SettingsRoute: SettingsRoute,
   ShopRoute: ShopRoute,
   SubmittalsRoute: SubmittalsRoute,
+  TasksRoute: TasksRoute,
   TransmittalsRoute: TransmittalsRoute,
   ViewerRoute: ViewerRoute,
+  WorkPackagesRoute: WorkPackagesRoute,
   PrintFieldRoute: PrintFieldRoute,
   PrintShopRoute: PrintShopRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

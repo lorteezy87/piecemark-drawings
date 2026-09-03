@@ -26,54 +26,23 @@ export type DrawingStatus =
   | "on_hold";
 
 export type Discipline =
-  | "structural_steel"
-  | "misc_metals"
-  | "stairs"
-  | "joists"
-  | "deck"
-  | "connections";
+  "structural_steel" | "misc_metals" | "stairs" | "joists" | "deck" | "connections";
 
-export type ProjectStatus =
-  | "bidding"
-  | "award"
-  | "detailing"
-  | "fab"
-  | "erection"
-  | "complete";
+export type ProjectStatus = "bidding" | "award" | "detailing" | "fab" | "erection" | "complete";
 
 export type SequenceStatus =
-  | "not_started"
-  | "detailing"
-  | "fab"
-  | "ready"
-  | "erecting"
-  | "complete";
+  "not_started" | "detailing" | "fab" | "ready" | "erecting" | "complete";
 
 export type RfiStatus = "open" | "answered" | "closed" | "void";
 export type RfiPriority = "low" | "normal" | "high" | "critical";
 
 export type SubmittalStatus =
-  | "draft"
-  | "submitted"
-  | "under_review"
-  | "aan"
-  | "approved"
-  | "rejected"
-  | "resubmit";
+  "draft" | "submitted" | "under_review" | "aan" | "approved" | "rejected" | "resubmit";
 
 export type SubmittalPackageType =
-  | "shop_drawings"
-  | "erection"
-  | "anchor_bolts"
-  | "misc"
-  | "resubmittal";
+  "shop_drawings" | "erection" | "anchor_bolts" | "misc" | "resubmittal";
 
-export type MarkupType =
-  | "redline"
-  | "field_note"
-  | "coordination"
-  | "hold"
-  | "as_built";
+export type MarkupType = "redline" | "field_note" | "coordination" | "hold" | "as_built";
 
 export interface Project {
   id: string;
@@ -200,6 +169,9 @@ export interface Submittal {
   /** Optional link to drawing set(s) this package covers */
   setIds?: string[];
   reviewer?: string;
+  /** Date the reviewed package is due back — drives the look ahead */
+  dueDate?: string;
+  ballInCourt?: BallInCourt;
   notes?: string;
 }
 
@@ -318,11 +290,7 @@ export const FAB_READY_STATUSES: DrawingStatus[] = [
   "issued_for_erection",
 ];
 
-export const FIELD_READY_STATUSES: DrawingStatus[] = [
-  "issued_for_erection",
-  "aan",
-  "approved",
-];
+export const FIELD_READY_STATUSES: DrawingStatus[] = ["issued_for_erection", "aan", "approved"];
 
 /** Worst-first status for set rollups from child sheets */
 export const STATUS_SEVERITY: Record<DrawingStatus, number> = {
@@ -339,18 +307,9 @@ export const STATUS_SEVERITY: Record<DrawingStatus, number> = {
   superseded: 10,
 };
 
-export type TransmittalKind =
-  | "to_field"
-  | "to_shop"
-  | "to_gc"
-  | "to_eor"
-  | "internal";
+export type TransmittalKind = "to_field" | "to_shop" | "to_gc" | "to_eor" | "internal";
 
-export type TransmittalStatus =
-  | "draft"
-  | "issued"
-  | "acknowledged"
-  | "superseded";
+export type TransmittalStatus = "draft" | "issued" | "acknowledged" | "superseded";
 
 export type ActivityKind =
   | "status"
@@ -361,6 +320,11 @@ export type ActivityKind =
   | "transmittal"
   | "submittal"
   | "markup"
+  | "task"
+  | "delivery"
+  | "change_order"
+  | "workpackage"
+  | "roadblock"
   | "system";
 
 export interface TransmittalItem {
@@ -397,6 +361,11 @@ export interface ActivityEvent {
   rfiId?: string;
   transmittalId?: string;
   submittalId?: string;
+  taskId?: string;
+  deliveryId?: string;
+  changeOrderId?: string;
+  workPackageId?: string;
+  roadblockId?: string;
 }
 
 /** Session-only uploaded sheet (PDF / image) bound to a drawing id */
@@ -425,11 +394,7 @@ export const TRANSMITTAL_STATUS_LABELS: Record<TransmittalStatus, string> = {
   superseded: "Superseded",
 };
 
-export const SHOP_QUEUE_STATUSES: DrawingStatus[] = [
-  "approved",
-  "aan",
-  "issued_for_fab",
-];
+export const SHOP_QUEUE_STATUSES: DrawingStatus[] = ["approved", "aan", "issued_for_fab"];
 
 /** Bump A → B → C … AA */
 export function nextRevision(current: string): string {
@@ -451,15 +416,8 @@ export function nextRevision(current: string): string {
   return "A" + chars.join("");
 }
 
-
 /** Crew role for soft RBAC in the pilot (client-enforced + audit label). */
-export type UserRole =
-  | "admin"
-  | "detailer"
-  | "fab"
-  | "field"
-  | "pm"
-  | "gc_view";
+export type UserRole = "admin" | "detailer" | "fab" | "field" | "pm" | "gc_view";
 
 export const USER_ROLE_LABELS: Record<UserRole, string> = {
   admin: "Admin / Document control",
@@ -475,4 +433,364 @@ export interface OrgProfile {
   name: string;
   /** Optional contact for RFI mailto routing */
   defaultRfiTo?: string;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   PM TRACKER — tasks, change orders, deliveries, work packages, roadblocks
+   Multi-job tracking layered over the existing drawings/RFI/submittal control.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/** Who you are waiting on. Half a PM's list is items they cannot close alone. */
+export type BallInCourt =
+  | "internal"
+  | "gc"
+  | "eor"
+  | "architect"
+  | "owner"
+  | "detailer"
+  | "fabricator"
+  | "vendor"
+  | "erector";
+
+export const BALL_IN_COURT_LABELS: Record<BallInCourt, string> = {
+  internal: "Internal",
+  gc: "GC",
+  eor: "EOR",
+  architect: "Architect",
+  owner: "Owner",
+  detailer: "Detailer",
+  fabricator: "Fab Shop",
+  vendor: "Vendor / Mill",
+  erector: "Erector",
+};
+
+export type TaskCategory =
+  | "rfi"
+  | "submittal"
+  | "change_order"
+  | "procurement"
+  | "delivery"
+  | "fabrication"
+  | "erection"
+  | "detailing"
+  | "billing"
+  | "safety"
+  | "coordination"
+  | "other";
+
+export const TASK_CATEGORY_LABELS: Record<TaskCategory, string> = {
+  rfi: "RFI",
+  submittal: "Submittal",
+  change_order: "Change Order",
+  procurement: "Procurement",
+  delivery: "Delivery",
+  fabrication: "Fabrication",
+  erection: "Erection",
+  detailing: "Detailing",
+  billing: "Billing",
+  safety: "Safety",
+  coordination: "Coordination",
+  other: "Other",
+};
+
+export type TaskStatus = "open" | "in_progress" | "blocked" | "done";
+export type TaskPriority = "hot" | "normal" | "low";
+export type TaskRecurrence = "none" | "daily" | "weekly" | "biweekly" | "monthly";
+
+export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+  open: "Open",
+  in_progress: "In Progress",
+  blocked: "Blocked",
+  done: "Done",
+};
+
+export const TASK_PRIORITY_LABELS: Record<TaskPriority, string> = {
+  hot: "Hot",
+  normal: "Normal",
+  low: "Low",
+};
+
+export const TASK_RECURRENCE_LABELS: Record<TaskRecurrence, string> = {
+  none: "One-off",
+  daily: "Daily",
+  weekly: "Weekly",
+  biweekly: "Every 2 weeks",
+  monthly: "Monthly",
+};
+
+/** Every task can point back at the record it came from. */
+export interface TaskLink {
+  drawingId?: string;
+  setId?: string;
+  rfiId?: string;
+  submittalId?: string;
+  changeOrderId?: string;
+  deliveryId?: string;
+  workPackageId?: string;
+  roadblockId?: string;
+  sequenceId?: string;
+  /** Free text pointer, e.g. "S-301 Rev C, detail 4" */
+  ref?: string;
+}
+
+export interface Subtask {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface Task {
+  id: string;
+  projectId: string;
+  title: string;
+  notes?: string;
+  category: TaskCategory;
+  status: TaskStatus;
+  priority: TaskPriority;
+  owner?: string;
+  ballInCourt?: BallInCourt;
+  /** YYYY-MM-DD */
+  dueDate?: string;
+  /** Hidden from active views until this date */
+  snoozedUntil?: string;
+  createdAt: string;
+  completedAt?: string;
+  subtasks: Subtask[];
+  links: TaskLink;
+  recurrence: TaskRecurrence;
+  /** Set on auto-generated tasks so the same source never spawns duplicates */
+  autoKey?: string;
+}
+
+/* ── Change orders ───────────────────────────────────────────────────────── */
+
+export type ChangeOrderType = "pco" | "co" | "backcharge" | "tm" | "credit";
+export type ChangeOrderStatus =
+  "draft" | "pending_pricing" | "submitted" | "approved" | "rejected" | "void";
+
+export const CHANGE_ORDER_TYPE_LABELS: Record<ChangeOrderType, string> = {
+  pco: "PCO",
+  co: "Change Order",
+  backcharge: "Backcharge",
+  tm: "T&M Ticket",
+  credit: "Credit",
+};
+
+export const CHANGE_ORDER_STATUS_LABELS: Record<ChangeOrderStatus, string> = {
+  draft: "Draft",
+  pending_pricing: "Pending Pricing",
+  submitted: "Submitted",
+  approved: "Approved",
+  rejected: "Rejected",
+  void: "Void",
+};
+
+export interface ChangeOrder {
+  id: string;
+  projectId: string;
+  number: string;
+  title: string;
+  type: ChangeOrderType;
+  status: ChangeOrderStatus;
+  /** Dollars. Negative for credits. */
+  amount: number;
+  /** Tons added (or removed) by the change */
+  tonnageDelta?: number;
+  scheduleImpactDays?: number;
+  description: string;
+  /** Entitlement trail — the RFI answer or drawing rev that caused it */
+  originRfiId?: string;
+  drawingIds: string[];
+  sequenceIds: string[];
+  pricedDate?: string;
+  submittedDate?: string;
+  approvedDate?: string;
+  dueDate?: string;
+  ballInCourt?: BallInCourt;
+  raisedBy?: string;
+  notes?: string;
+}
+
+/* ── Deliveries / loads ──────────────────────────────────────────────────── */
+
+export type DeliveryStatus =
+  "planned" | "released" | "loaded" | "in_transit" | "delivered" | "received" | "exception";
+
+export const DELIVERY_STATUS_LABELS: Record<DeliveryStatus, string> = {
+  planned: "Planned",
+  released: "Released to Ship",
+  loaded: "Loaded",
+  in_transit: "In Transit",
+  delivered: "Delivered",
+  received: "Received & Verified",
+  exception: "Short / Damaged",
+};
+
+export interface DeliveryLine {
+  mark: string;
+  qty: number;
+  weightLbs?: number;
+  /** Filled at receiving; short when < qty */
+  received?: number;
+}
+
+export interface Delivery {
+  id: string;
+  projectId: string;
+  loadNumber: string;
+  status: DeliveryStatus;
+  sequenceId?: string;
+  workPackageId?: string;
+  carrier?: string;
+  truckNumber?: string;
+  /** Date it leaves the shop */
+  shipDate?: string;
+  /** Date the field needs it on site — the date that actually drives erection */
+  requiredDate?: string;
+  deliveredDate?: string;
+  receivedDate?: string;
+  destination?: string;
+  offloadBy?: string;
+  craneRequired: boolean;
+  tonnage?: number;
+  lines: DeliveryLine[];
+  /** Short / damage note when status is exception */
+  issue?: string;
+  notes?: string;
+}
+
+/* ── Work packages (fabrication + erection tracking) ─────────────────────── */
+
+export type WorkPackageType =
+  "detailing" | "procurement" | "fabrication" | "paint_galv" | "shipping" | "erection" | "misc";
+
+export type WorkPackageStatus = "not_started" | "in_progress" | "blocked" | "complete";
+
+export const WORK_PACKAGE_TYPE_LABELS: Record<WorkPackageType, string> = {
+  detailing: "Detailing",
+  procurement: "Procurement",
+  fabrication: "Fabrication",
+  paint_galv: "Paint / Galv",
+  shipping: "Shipping",
+  erection: "Erection",
+  misc: "Misc",
+};
+
+export const WORK_PACKAGE_STATUS_LABELS: Record<WorkPackageStatus, string> = {
+  not_started: "Not Started",
+  in_progress: "In Progress",
+  blocked: "Blocked",
+  complete: "Complete",
+};
+
+export interface WorkPackage {
+  id: string;
+  projectId: string;
+  code: string;
+  name: string;
+  type: WorkPackageType;
+  status: WorkPackageStatus;
+  sequenceId?: string;
+  area?: string;
+  grids?: string;
+  owner?: string;
+  tonnage?: number;
+  pieceCount?: number;
+  percentComplete: number;
+  drawingSetIds: string[];
+  /** Fabrication timeline — the dates that drive the shop */
+  releaseToFabDate?: string;
+  fabStartDate?: string;
+  fabDueDate?: string;
+  fabCompleteDate?: string;
+  paintOutDate?: string;
+  paintBackDate?: string;
+  shipDate?: string;
+  onSiteDate?: string;
+  /** Erection timeline */
+  erectStartDate?: string;
+  erectEndDate?: string;
+  erectedPct?: number;
+  craneDays?: number;
+  crewSize?: number;
+  notes?: string;
+}
+
+/** Shop hours between fab start and fab due, for load planning. */
+export function fabDurationDays(wp: WorkPackage): number | null {
+  if (!wp.fabStartDate || !wp.fabDueDate) return null;
+  const a = new Date(wp.fabStartDate + "T12:00:00").getTime();
+  const b = new Date(wp.fabDueDate + "T12:00:00").getTime();
+  if (Number.isNaN(a) || Number.isNaN(b)) return null;
+  return Math.round((b - a) / 86400000);
+}
+
+/* ── Roadblocks ──────────────────────────────────────────────────────────── */
+
+export type RoadblockCategory =
+  | "design"
+  | "approval"
+  | "material"
+  | "fabrication"
+  | "access"
+  | "manpower"
+  | "equipment"
+  | "weather"
+  | "coordination"
+  | "other";
+
+export type RoadblockSeverity = "low" | "medium" | "high" | "critical";
+export type RoadblockStatus = "open" | "mitigating" | "resolved";
+
+export const ROADBLOCK_CATEGORY_LABELS: Record<RoadblockCategory, string> = {
+  design: "Design / EOR",
+  approval: "Approval",
+  material: "Material",
+  fabrication: "Fabrication",
+  access: "Site Access",
+  manpower: "Manpower",
+  equipment: "Crane / Equipment",
+  weather: "Weather",
+  coordination: "Trade Coordination",
+  other: "Other",
+};
+
+export const ROADBLOCK_SEVERITY_LABELS: Record<RoadblockSeverity, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  critical: "Critical",
+};
+
+export const ROADBLOCK_STATUS_LABELS: Record<RoadblockStatus, string> = {
+  open: "Open",
+  mitigating: "Mitigating",
+  resolved: "Resolved",
+};
+
+export interface Roadblock {
+  id: string;
+  projectId: string;
+  number: string;
+  title: string;
+  description: string;
+  category: RoadblockCategory;
+  severity: RoadblockSeverity;
+  status: RoadblockStatus;
+  raisedDate: string;
+  raisedBy: string;
+  owner?: string;
+  ballInCourt?: BallInCourt;
+  targetResolution?: string;
+  resolvedDate?: string;
+  resolution?: string;
+  scheduleImpactDays?: number;
+  costImpact?: number;
+  mitigation?: string;
+  drawingIds: string[];
+  sequenceIds: string[];
+  workPackageIds: string[];
+  rfiIds: string[];
+  deliveryIds: string[];
+  notes?: string;
 }

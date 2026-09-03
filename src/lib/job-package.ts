@@ -1,19 +1,30 @@
 import type {
   ActivityEvent,
+  ChangeOrder,
+  Delivery,
   Drawing,
   DrawingSet,
   Markup,
   Project,
   Revision,
   RFI,
+  Roadblock,
   Sequence,
   Submittal,
+  Task,
   Transmittal,
   UserRole,
+  WorkPackage,
 } from "@/lib/types";
 
-/** Package schema version — v2 adds org profile fields. */
-export const JOB_PACKAGE_VERSION = 2 as const;
+/**
+ * Package schema version.
+ * v2 adds org profile fields.
+ * v3 adds the PM tracker records (tasks, change orders, deliveries,
+ * work packages, roadblocks). v1/v2 packages still import — the new
+ * collections just come back empty.
+ */
+export const JOB_PACKAGE_VERSION = 3 as const;
 
 export type JobPackage = {
   version: number;
@@ -30,6 +41,12 @@ export type JobPackage = {
   transmittals: Transmittal[];
   activities: ActivityEvent[];
   selectedProjectId: string | null;
+  /** v3: PM tracker collections (optional so v1/v2 packages still import) */
+  tasks?: Task[];
+  changeOrders?: ChangeOrder[];
+  deliveries?: Delivery[];
+  workPackages?: WorkPackage[];
+  roadblocks?: Roadblock[];
   /** v2: company / station defaults (optional for v1 imports) */
   orgName?: string;
   orgRfiEmail?: string;
@@ -43,9 +60,7 @@ export function downloadJobPackage(pkg: JobPackage, filename?: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download =
-    filename ??
-    `piecemark-export-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = filename ?? `piecemark-export-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }

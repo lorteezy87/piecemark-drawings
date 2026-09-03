@@ -12,8 +12,21 @@ import {
   submittals as seedSubmittals,
   transmittals as seedTransmittals,
 } from "@/data/seed";
+import {
+  changeOrders as seedChangeOrders,
+  deliveries as seedDeliveries,
+  roadblocks as seedRoadblocks,
+  tasks as seedTasks,
+  workPackages as seedWorkPackages,
+} from "@/data/seed-pm";
 import type {
   ActivityEvent,
+  BallInCourt,
+  ChangeOrder,
+  ChangeOrderStatus,
+  Delivery,
+  DeliveryLine,
+  DeliveryStatus,
   Discipline,
   Drawing,
   DrawingSet,
@@ -24,14 +37,26 @@ import type {
   ProjectStatus,
   Revision,
   RFI,
+  Roadblock,
+  RoadblockStatus,
   Sequence,
   SheetAsset,
   Submittal,
   SubmittalPackageType,
   SubmittalStatus,
+  Subtask,
+  Task,
+  TaskCategory,
+  TaskLink,
+  TaskPriority,
+  TaskRecurrence,
+  TaskStatus,
   Transmittal,
   TransmittalKind,
   UserRole,
+  WorkPackage,
+  WorkPackageStatus,
+  WorkPackageType,
 } from "@/lib/types";
 import { idbDeleteFile, idbPutFile, sheetAssetKey } from "@/lib/idb-files";
 import { newId } from "@/lib/ids";
@@ -90,6 +115,11 @@ interface AppState {
   markups: Markup[];
   transmittals: Transmittal[];
   activities: ActivityEvent[];
+  tasks: Task[];
+  changeOrders: ChangeOrder[];
+  deliveries: Delivery[];
+  workPackages: WorkPackage[];
+  roadblocks: Roadblock[];
   sheetAssets: Record<string, SheetAsset>;
   /** Per-job manual title-block field regions for PDF upload extraction */
   titleBlockMaps: Record<string, TitleBlockMap>;
@@ -101,11 +131,7 @@ interface AppState {
   updateDrawingStatus: (id: string, status: DrawingStatus, note?: string) => void;
   updateSetStatus: (id: string, status: DrawingStatus) => void;
   placeHold: (drawingId: string, reason: string, actor?: string) => void;
-  releaseHold: (
-    drawingId: string,
-    newStatus?: DrawingStatus,
-    actor?: string,
-  ) => void;
+  releaseHold: (drawingId: string, newStatus?: DrawingStatus, actor?: string) => void;
   issueRevision: (
     drawingId: string,
     description: string,
@@ -150,11 +176,7 @@ interface AppState {
     notes?: string;
     submitNow?: boolean;
   }) => string;
-  updateSubmittalStatus: (
-    id: string,
-    status: SubmittalStatus,
-    notes?: string,
-  ) => void;
+  updateSubmittalStatus: (id: string, status: SubmittalStatus, notes?: string) => void;
   resetDemoData: () => void;
   deleteProject: (projectId: string) => boolean;
   clearDemoProjects: () => number;
@@ -216,6 +238,134 @@ interface AppState {
     projectId: string,
     entries: { mark: string; drawingNumber?: string; title?: string; setCode?: string }[],
   ) => { sheetsCreated: number; marksAdded: number };
+
+  /* ── PM tracker ──────────────────────────────────────────────────────── */
+  addTask: (input: {
+    projectId: string;
+    title: string;
+    notes?: string;
+    category?: TaskCategory;
+    priority?: TaskPriority;
+    status?: TaskStatus;
+    owner?: string;
+    ballInCourt?: BallInCourt;
+    dueDate?: string;
+    recurrence?: TaskRecurrence;
+    links?: TaskLink;
+    subtasks?: Subtask[];
+    autoKey?: string;
+  }) => string;
+  updateTask: (id: string, patch: Partial<Omit<Task, "id" | "projectId">>) => void;
+  setTaskStatus: (id: string, status: TaskStatus) => void;
+  toggleTaskDone: (id: string) => void;
+  snoozeTask: (id: string, until: string) => void;
+  deleteTask: (id: string) => void;
+  addSubtask: (taskId: string, text: string) => void;
+  toggleSubtask: (taskId: string, subtaskId: string) => void;
+  removeSubtask: (taskId: string, subtaskId: string) => void;
+
+  addChangeOrder: (input: {
+    projectId: string;
+    title: string;
+    type: ChangeOrder["type"];
+    amount: number;
+    description: string;
+    number?: string;
+    status?: ChangeOrderStatus;
+    tonnageDelta?: number;
+    scheduleImpactDays?: number;
+    originRfiId?: string;
+    drawingIds?: string[];
+    sequenceIds?: string[];
+    dueDate?: string;
+    ballInCourt?: BallInCourt;
+    raisedBy?: string;
+    notes?: string;
+  }) => string;
+  updateChangeOrder: (id: string, patch: Partial<Omit<ChangeOrder, "id" | "projectId">>) => void;
+  setChangeOrderStatus: (id: string, status: ChangeOrderStatus) => void;
+  deleteChangeOrder: (id: string) => void;
+
+  addDelivery: (input: {
+    projectId: string;
+    loadNumber?: string;
+    sequenceId?: string;
+    workPackageId?: string;
+    carrier?: string;
+    truckNumber?: string;
+    shipDate?: string;
+    requiredDate?: string;
+    destination?: string;
+    offloadBy?: string;
+    craneRequired?: boolean;
+    tonnage?: number;
+    lines?: DeliveryLine[];
+    notes?: string;
+  }) => string;
+  updateDelivery: (id: string, patch: Partial<Omit<Delivery, "id" | "projectId">>) => void;
+  setDeliveryStatus: (id: string, status: DeliveryStatus, issue?: string) => void;
+  receiveDelivery: (
+    id: string,
+    received: { mark: string; received: number }[],
+    issue?: string,
+  ) => void;
+  deleteDelivery: (id: string) => void;
+
+  addWorkPackage: (input: {
+    projectId: string;
+    name: string;
+    type: WorkPackageType;
+    code?: string;
+    status?: WorkPackageStatus;
+    sequenceId?: string;
+    area?: string;
+    grids?: string;
+    owner?: string;
+    tonnage?: number;
+    pieceCount?: number;
+    percentComplete?: number;
+    drawingSetIds?: string[];
+    releaseToFabDate?: string;
+    fabStartDate?: string;
+    fabDueDate?: string;
+    paintOutDate?: string;
+    paintBackDate?: string;
+    shipDate?: string;
+    onSiteDate?: string;
+    erectStartDate?: string;
+    erectEndDate?: string;
+    craneDays?: number;
+    crewSize?: number;
+    notes?: string;
+  }) => string;
+  updateWorkPackage: (id: string, patch: Partial<Omit<WorkPackage, "id" | "projectId">>) => void;
+  deleteWorkPackage: (id: string) => void;
+
+  addRoadblock: (input: {
+    projectId: string;
+    title: string;
+    description: string;
+    category: Roadblock["category"];
+    severity: Roadblock["severity"];
+    number?: string;
+    status?: RoadblockStatus;
+    owner?: string;
+    raisedBy?: string;
+    ballInCourt?: BallInCourt;
+    targetResolution?: string;
+    scheduleImpactDays?: number;
+    costImpact?: number;
+    mitigation?: string;
+    drawingIds?: string[];
+    sequenceIds?: string[];
+    workPackageIds?: string[];
+    rfiIds?: string[];
+    deliveryIds?: string[];
+    notes?: string;
+  }) => string;
+  updateRoadblock: (id: string, patch: Partial<Omit<Roadblock, "id" | "projectId">>) => void;
+  resolveRoadblock: (id: string, resolution?: string) => void;
+  deleteRoadblock: (id: string) => void;
 }
 
 const defaultFilters: DrawingFilters = {
@@ -243,14 +393,17 @@ function seedState() {
     markups: seedMarkups,
     transmittals: seedTransmittals,
     activities: seedActivities,
+    tasks: seedTasks,
+    changeOrders: seedChangeOrders,
+    deliveries: seedDeliveries,
+    workPackages: seedWorkPackages,
+    roadblocks: seedRoadblocks,
     selectedProjectId: seedProjects[0]?.id ?? null,
     filters: { ...defaultFilters },
   };
 }
 
-function makeActivity(
-  partial: Omit<ActivityEvent, "id" | "at"> & { at?: string },
-): ActivityEvent {
+function makeActivity(partial: Omit<ActivityEvent, "id" | "at"> & { at?: string }): ActivityEvent {
   return {
     id: newId("act"),
     at: partial.at ?? new Date().toISOString(),
@@ -263,17 +416,83 @@ function makeActivity(
     rfiId: partial.rfiId,
     transmittalId: partial.transmittalId,
     submittalId: partial.submittalId,
+    taskId: partial.taskId,
+    deliveryId: partial.deliveryId,
+    changeOrderId: partial.changeOrderId,
+    workPackageId: partial.workPackageId,
+    roadblockId: partial.roadblockId,
   };
 }
 
-function pushActivity(
-  s: { activities: ActivityEvent[] },
-  event: ActivityEvent,
-): ActivityEvent[] {
+function pushActivity(s: { activities: ActivityEvent[] }, event: ActivityEvent): ActivityEvent[] {
   return [event, ...s.activities].slice(0, 200);
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
+
+/** Shift a YYYY-MM-DD date by whole days without tripping over DST. */
+function addDaysIso(iso: string, n: number): string {
+  const d = new Date(iso + (iso.length === 10 ? "T12:00:00" : ""));
+  if (Number.isNaN(d.getTime())) return iso;
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Next occurrence for a recurring task, rolled forward from its own due date. */
+function nextRecurrenceDate(due: string | undefined, rec: TaskRecurrence): string | undefined {
+  if (rec === "none") return undefined;
+  const base = due ?? today();
+  if (rec === "daily") return addDaysIso(base, 1);
+  if (rec === "weekly") return addDaysIso(base, 7);
+  if (rec === "biweekly") return addDaysIso(base, 14);
+  const d = new Date(base + "T12:00:00");
+  d.setMonth(d.getMonth() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/** CO-001, LOAD-004, RB-002 … continues from the highest number already used. */
+function nextSeqNumber(prefix: string, existing: string[]): string {
+  let max = 0;
+  for (const n of existing) {
+    const m = /(\d+)\s*$/.exec(n);
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return `${prefix}-${String(max + 1).padStart(3, "0")}`;
+}
+
+function makeTask(input: Partial<Task> & { projectId: string; title: string }): Task {
+  return {
+    id: input.id ?? newId("task"),
+    projectId: input.projectId,
+    title: input.title,
+    notes: input.notes,
+    category: input.category ?? "other",
+    status: input.status ?? "open",
+    priority: input.priority ?? "normal",
+    owner: input.owner,
+    ballInCourt: input.ballInCourt,
+    dueDate: input.dueDate,
+    snoozedUntil: input.snoozedUntil,
+    createdAt: input.createdAt ?? today(),
+    completedAt: input.completedAt,
+    subtasks: input.subtasks ?? [],
+    links: input.links ?? {},
+    recurrence: input.recurrence ?? "none",
+    autoKey: input.autoKey,
+  };
+}
+
+/**
+ * Auto-generated follow-ups (RFI opened, hold placed, submittal returned).
+ * Keyed so the same source record never spawns the task twice — a duplicate
+ * follow-up is the fastest way to get a PM to stop trusting the list.
+ */
+function upsertAutoTask(tasks: Task[], task: Task): Task[] {
+  if (task.autoKey && tasks.some((t) => t.autoKey === task.autoKey)) {
+    return tasks;
+  }
+  return [task, ...tasks];
+}
 
 function actorName(s: { sessionActor: string }, fallback?: string): string {
   return (fallback && fallback !== "User" ? fallback : null) || s.sessionActor || "Station";
@@ -285,7 +504,6 @@ function deny(role: UserRole, perm: Permission): boolean {
   return true;
 }
 
-
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -293,14 +511,10 @@ export const useAppStore = create<AppState>()(
       sheetAssets: {},
       titleBlockMaps: {},
       setCrewRole: (role) => set({ crewRole: role }),
-      setSessionActor: (name) =>
-        set({ sessionActor: name.trim() || "Station" }),
+      setSessionActor: (name) => set({ sessionActor: name.trim() || "Station" }),
       setOrgProfile: (input) =>
         set((s) => {
-          if (
-            !can(s.crewRole, "admin.settings") &&
-            !can(s.crewRole, "drawing.edit")
-          ) {
+          if (!can(s.crewRole, "admin.settings") && !can(s.crewRole, "drawing.edit")) {
             toast.error("Not allowed: update org profile");
             return s;
           }
@@ -310,8 +524,7 @@ export const useAppStore = create<AppState>()(
           };
         }),
       setSelectedProjectId: (id) => set({ selectedProjectId: id }),
-      setFilters: (partial) =>
-        set((s) => ({ filters: { ...s.filters, ...partial } })),
+      setFilters: (partial) => set((s) => ({ filters: { ...s.filters, ...partial } })),
       resetFilters: () => set({ filters: { ...defaultFilters } }),
 
       updateDrawingStatus: (id, status, note) =>
@@ -327,8 +540,7 @@ export const useAppStore = create<AppState>()(
                     holdReason: status === "on_hold" ? note : undefined,
                     notes: note && status !== "on_hold" ? note : x.notes,
                     issuedDate:
-                      status === "issued_for_fab" ||
-                      status === "issued_for_erection"
+                      status === "issued_for_fab" || status === "issued_for_erection"
                         ? (x.issuedDate ?? today())
                         : x.issuedDate,
                   }
@@ -360,8 +572,7 @@ export const useAppStore = create<AppState>()(
                     ...ds,
                     status,
                     issuedDate:
-                      status === "issued_for_fab" ||
-                      status === "issued_for_erection"
+                      status === "issued_for_fab" || status === "issued_for_erection"
                         ? (ds.issuedDate ?? today())
                         : ds.issuedDate,
                   }
@@ -378,9 +589,22 @@ export const useAppStore = create<AppState>()(
           actor = actorName(s, actor);
           return {
             drawings: s.drawings.map((x) =>
-              x.id === drawingId
-                ? { ...x, status: "on_hold" as const, holdReason: reason }
-                : x,
+              x.id === drawingId ? { ...x, status: "on_hold" as const, holdReason: reason } : x,
+            ),
+            // A hold blocks fab — it gets a dated clear-hold task immediately
+            tasks: upsertAutoTask(
+              s.tasks,
+              makeTask({
+                projectId: d.projectId,
+                title: `Clear hold on ${d.number} — ${d.title}`,
+                notes: reason,
+                category: "detailing",
+                priority: "hot",
+                owner: actor,
+                dueDate: addDaysIso(today(), 3),
+                links: { drawingId: d.id, setId: d.setId, ref: `${d.number} Rev ${d.currentRev}` },
+                autoKey: `hold:${d.id}`,
+              }),
             ),
             activities: pushActivity(
               s,
@@ -410,8 +634,7 @@ export const useAppStore = create<AppState>()(
                     status: newStatus,
                     holdReason: undefined,
                     issuedDate:
-                      newStatus === "issued_for_fab" ||
-                      newStatus === "issued_for_erection"
+                      newStatus === "issued_for_fab" || newStatus === "issued_for_erection"
                         ? (x.issuedDate ?? today())
                         : x.issuedDate,
                   }
@@ -453,8 +676,7 @@ export const useAppStore = create<AppState>()(
                     currentRev: rev,
                     status,
                     issuedDate: today(),
-                    holdReason:
-                      status === "on_hold" ? x.holdReason : undefined,
+                    holdReason: status === "on_hold" ? x.holdReason : undefined,
                   }
                 : x,
             ),
@@ -483,9 +705,7 @@ export const useAppStore = create<AppState>()(
 
       resolveMarkup: (id) =>
         set((s) => ({
-          markups: s.markups.map((m) =>
-            m.id === id ? { ...m, resolved: true } : m,
-          ),
+          markups: s.markups.map((m) => (m.id === id ? { ...m, resolved: true } : m)),
         })),
 
       updateRfiStatus: (id, status, answer, options) =>
@@ -541,12 +761,8 @@ export const useAppStore = create<AppState>()(
       addRfi: (input) => {
         if (deny(get().crewRole, "rfi.create")) return "";
         const id = newId("rfi");
-        const projectRfis = get().rfis.filter(
-          (r) => r.projectId === input.projectId,
-        );
-        const num =
-          input.number ??
-          `RFI-${String(projectRfis.length + 1).padStart(3, "0")}`;
+        const projectRfis = get().rfis.filter((r) => r.projectId === input.projectId);
+        const num = input.number ?? `RFI-${String(projectRfis.length + 1).padStart(3, "0")}`;
         const rfi: RFI = {
           id,
           projectId: input.projectId,
@@ -563,6 +779,22 @@ export const useAppStore = create<AppState>()(
         };
         set((s) => ({
           rfis: [rfi, ...s.rfis],
+          // An RFI with nobody chasing it is just a note. Auto follow-up task.
+          tasks: upsertAutoTask(
+            s.tasks,
+            makeTask({
+              projectId: input.projectId,
+              title: `Follow up on ${num} — ${input.subject}`,
+              category: "rfi",
+              priority:
+                input.priority === "critical" || input.priority === "high" ? "hot" : "normal",
+              ballInCourt: "eor",
+              owner: input.raisedBy,
+              dueDate: input.dueDate ?? addDaysIso(today(), 7),
+              links: { rfiId: id, drawingId: input.drawingIds[0] },
+              autoKey: `rfi-followup:${id}`,
+            }),
+          ),
           activities: pushActivity(
             s,
             makeActivity({
@@ -581,9 +813,7 @@ export const useAppStore = create<AppState>()(
       createTransmittal: (input) => {
         if (deny(get().crewRole, "transmittal.issue")) return "";
         const id = newId("tr");
-        const count = get().transmittals.filter(
-          (t) => t.projectId === input.projectId,
-        ).length;
+        const count = get().transmittals.filter((t) => t.projectId === input.projectId).length;
         const number = `TR-${String(count + 1).padStart(3, "0")}`;
         const items = input.drawingIds.map((drawingId) => {
           const d = get().drawings.find((x) => x.id === drawingId);
@@ -660,9 +890,7 @@ export const useAppStore = create<AppState>()(
       createSubmittal: (input) => {
         if (deny(get().crewRole, "submittal.manage")) return "";
         const id = newId("sub");
-        const count = get().submittals.filter(
-          (x) => x.projectId === input.projectId,
-        ).length;
+        const count = get().submittals.filter((x) => x.projectId === input.projectId).length;
         const number = `SUB-${String(count + 1).padStart(3, "0")}`;
         const sub: Submittal = {
           id,
@@ -712,12 +940,31 @@ export const useAppStore = create<AppState>()(
                         ? (x.returnedDate ?? today())
                         : x.returnedDate,
                     submittedDate:
-                      status === "submitted"
-                        ? (x.submittedDate ?? today())
-                        : x.submittedDate,
+                      status === "submitted" ? (x.submittedDate ?? today()) : x.submittedDate,
                   }
                 : x,
             ),
+            // Returned AAN / rejected / resubmit means work comes back to us
+            tasks:
+              sub && (status === "aan" || status === "rejected" || status === "resubmit")
+                ? upsertAutoTask(
+                    s.tasks,
+                    makeTask({
+                      projectId: sub.projectId,
+                      title:
+                        status === "aan"
+                          ? `Incorporate review comments on ${sub.number}`
+                          : `Revise & resubmit ${sub.number} — ${sub.title}`,
+                      notes,
+                      category: "submittal",
+                      priority: "hot",
+                      ballInCourt: "detailer",
+                      dueDate: addDaysIso(today(), 5),
+                      links: { submittalId: sub.id },
+                      autoKey: `submittal-return:${sub.id}:${status}`,
+                    }),
+                  )
+                : s.tasks,
             activities: sub
               ? pushActivity(
                   s,
@@ -797,7 +1044,6 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-      
       setTitleBlockMap: (map) => {
         const role = get().crewRole;
         if (!can(role, "drawing.edit") && !can(role, "drawing.upload")) {
@@ -823,7 +1069,7 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-createProject: (input) => {
+      createProject: (input) => {
         if (deny(get().crewRole, "job.create")) return "";
         const id = newId("proj");
         const project: Project = {
@@ -886,7 +1132,6 @@ createProject: (input) => {
         return id;
       },
 
-      
       updateDrawingSet: (setId, patch) => {
         if (deny(get().crewRole, "drawing.edit")) return false;
         const ds = get().drawingSets.find((x) => x.id === setId);
@@ -927,7 +1172,7 @@ createProject: (input) => {
         return true;
       },
 
-createDrawing: (input) => {
+      createDrawing: (input) => {
         if (deny(get().crewRole, "drawing.edit")) return "";
         const id = newId("dwg");
         const sheets = get().drawings.filter((d) => d.setId === input.setId);
@@ -1049,6 +1294,673 @@ createDrawing: (input) => {
         return true;
       },
 
+      /* ── PM tracker: tasks ─────────────────────────────────────────── */
+
+      addTask: (input) => {
+        if (deny(get().crewRole, "task.manage")) return "";
+        const task = makeTask({
+          projectId: input.projectId,
+          title: input.title.trim(),
+          notes: input.notes,
+          category: input.category,
+          priority: input.priority,
+          status: input.status,
+          owner: input.owner,
+          ballInCourt: input.ballInCourt,
+          dueDate: input.dueDate,
+          recurrence: input.recurrence,
+          links: input.links,
+          subtasks: input.subtasks,
+          autoKey: input.autoKey,
+        });
+        set((s) => ({
+          tasks: upsertAutoTask(s.tasks, task),
+          activities: pushActivity(
+            s,
+            makeActivity({
+              projectId: input.projectId,
+              kind: "task",
+              actor: actorName(s),
+              summary: `Task added — ${task.title}`,
+              taskId: task.id,
+            }),
+          ),
+        }));
+        return task.id;
+      },
+
+      updateTask: (id, patch) =>
+        set((s) => {
+          if (deny(s.crewRole, "task.manage")) return s;
+          return {
+            tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+          };
+        }),
+
+      setTaskStatus: (id, status) =>
+        set((s) => {
+          if (deny(s.crewRole, "task.manage")) return s;
+          return {
+            tasks: s.tasks.map((t) =>
+              t.id === id
+                ? {
+                    ...t,
+                    status,
+                    completedAt: status === "done" ? today() : undefined,
+                  }
+                : t,
+            ),
+          };
+        }),
+
+      toggleTaskDone: (id) =>
+        set((s) => {
+          if (deny(s.crewRole, "task.manage")) return s;
+          const t = s.tasks.find((x) => x.id === id);
+          if (!t) return s;
+          const done = t.status !== "done";
+          let tasks = s.tasks.map((x) =>
+            x.id === id
+              ? {
+                  ...x,
+                  status: (done ? "done" : "open") as TaskStatus,
+                  completedAt: done ? today() : undefined,
+                }
+              : x,
+          );
+          // A completed recurring task immediately spawns its next occurrence
+          if (done && t.recurrence !== "none") {
+            const nextDue = nextRecurrenceDate(t.dueDate, t.recurrence);
+            tasks = [
+              makeTask({
+                projectId: t.projectId,
+                title: t.title,
+                notes: t.notes,
+                category: t.category,
+                priority: t.priority,
+                owner: t.owner,
+                ballInCourt: t.ballInCourt,
+                dueDate: nextDue,
+                links: t.links,
+                recurrence: t.recurrence,
+                subtasks: t.subtasks.map((st) => ({ ...st, done: false })),
+              }),
+              ...tasks,
+            ];
+          }
+          return {
+            tasks,
+            activities: done
+              ? pushActivity(
+                  s,
+                  makeActivity({
+                    projectId: t.projectId,
+                    kind: "task",
+                    actor: actorName(s),
+                    summary: `Task done — ${t.title}`,
+                    taskId: t.id,
+                  }),
+                )
+              : s.activities,
+          };
+        }),
+
+      snoozeTask: (id, until) =>
+        set((s) => {
+          if (deny(s.crewRole, "task.manage")) return s;
+          return {
+            tasks: s.tasks.map((t) => (t.id === id ? { ...t, snoozedUntil: until } : t)),
+          };
+        }),
+
+      deleteTask: (id) =>
+        set((s) => {
+          if (deny(s.crewRole, "task.manage")) return s;
+          return { tasks: s.tasks.filter((t) => t.id !== id) };
+        }),
+
+      addSubtask: (taskId, text) =>
+        set((s) => {
+          if (deny(s.crewRole, "task.manage")) return s;
+          const clean = text.trim();
+          if (!clean) return s;
+          return {
+            tasks: s.tasks.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    subtasks: [...t.subtasks, { id: newId("st"), text: clean, done: false }],
+                  }
+                : t,
+            ),
+          };
+        }),
+
+      toggleSubtask: (taskId, subtaskId) =>
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  subtasks: t.subtasks.map((st) =>
+                    st.id === subtaskId ? { ...st, done: !st.done } : st,
+                  ),
+                }
+              : t,
+          ),
+        })),
+
+      removeSubtask: (taskId, subtaskId) =>
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            t.id === taskId
+              ? { ...t, subtasks: t.subtasks.filter((st) => st.id !== subtaskId) }
+              : t,
+          ),
+        })),
+
+      /* ── PM tracker: change orders ─────────────────────────────────── */
+
+      addChangeOrder: (input) => {
+        if (deny(get().crewRole, "change_order.manage")) return "";
+        const id = newId("co");
+        const existing = get()
+          .changeOrders.filter((c) => c.projectId === input.projectId)
+          .map((c) => c.number);
+        const prefix =
+          input.type === "backcharge"
+            ? "BC"
+            : input.type === "tm"
+              ? "TM"
+              : input.type === "pco"
+                ? "PCO"
+                : "CO";
+        const number =
+          input.number ??
+          nextSeqNumber(
+            prefix,
+            existing.filter((n) => n.startsWith(prefix)),
+          );
+        const co: ChangeOrder = {
+          id,
+          projectId: input.projectId,
+          number,
+          title: input.title.trim(),
+          type: input.type,
+          status: input.status ?? "draft",
+          amount: input.amount,
+          tonnageDelta: input.tonnageDelta,
+          scheduleImpactDays: input.scheduleImpactDays,
+          description: input.description,
+          originRfiId: input.originRfiId,
+          drawingIds: input.drawingIds ?? [],
+          sequenceIds: input.sequenceIds ?? [],
+          dueDate: input.dueDate,
+          ballInCourt: input.ballInCourt,
+          raisedBy: input.raisedBy ?? get().sessionActor,
+          notes: input.notes,
+        };
+        set((s) => ({
+          changeOrders: [co, ...s.changeOrders],
+          activities: pushActivity(
+            s,
+            makeActivity({
+              projectId: input.projectId,
+              kind: "change_order",
+              actor: actorName(s),
+              summary: `${number} raised — ${co.title}`,
+              detail: `$${Math.round(co.amount).toLocaleString("en-US")}`,
+              changeOrderId: id,
+            }),
+          ),
+        }));
+        return id;
+      },
+
+      updateChangeOrder: (id, patch) =>
+        set((s) => {
+          if (deny(s.crewRole, "change_order.manage")) return s;
+          return {
+            changeOrders: s.changeOrders.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+          };
+        }),
+
+      setChangeOrderStatus: (id, status) =>
+        set((s) => {
+          if (deny(s.crewRole, "change_order.manage")) return s;
+          const co = s.changeOrders.find((c) => c.id === id);
+          return {
+            changeOrders: s.changeOrders.map((c) =>
+              c.id === id
+                ? {
+                    ...c,
+                    status,
+                    submittedDate:
+                      status === "submitted" ? (c.submittedDate ?? today()) : c.submittedDate,
+                    approvedDate:
+                      status === "approved" ? (c.approvedDate ?? today()) : c.approvedDate,
+                  }
+                : c,
+            ),
+            activities: co
+              ? pushActivity(
+                  s,
+                  makeActivity({
+                    projectId: co.projectId,
+                    kind: "change_order",
+                    actor: actorName(s),
+                    summary: `${co.number} → ${status.replace(/_/g, " ")}`,
+                    changeOrderId: co.id,
+                  }),
+                )
+              : s.activities,
+          };
+        }),
+
+      deleteChangeOrder: (id) =>
+        set((s) => {
+          if (deny(s.crewRole, "change_order.manage")) return s;
+          return { changeOrders: s.changeOrders.filter((c) => c.id !== id) };
+        }),
+
+      /* ── PM tracker: deliveries ────────────────────────────────────── */
+
+      addDelivery: (input) => {
+        if (deny(get().crewRole, "delivery.manage")) return "";
+        const id = newId("del");
+        const existing = get()
+          .deliveries.filter((d) => d.projectId === input.projectId)
+          .map((d) => d.loadNumber);
+        const loadNumber = input.loadNumber ?? nextSeqNumber("LOAD", existing);
+        const lines = input.lines ?? [];
+        const del: Delivery = {
+          id,
+          projectId: input.projectId,
+          loadNumber,
+          status: "planned",
+          sequenceId: input.sequenceId,
+          workPackageId: input.workPackageId,
+          carrier: input.carrier,
+          truckNumber: input.truckNumber,
+          shipDate: input.shipDate,
+          requiredDate: input.requiredDate,
+          destination: input.destination,
+          offloadBy: input.offloadBy,
+          craneRequired: input.craneRequired ?? false,
+          tonnage: input.tonnage,
+          lines,
+          notes: input.notes,
+        };
+        set((s) => {
+          // A truck with a required-on-site date always gets a confirmation
+          // task the day before — crane and laydown are the usual misses.
+          const tasks =
+            del.requiredDate && del.craneRequired
+              ? upsertAutoTask(
+                  s.tasks,
+                  makeTask({
+                    projectId: del.projectId,
+                    title: `Confirm crane and laydown for ${loadNumber}`,
+                    category: "delivery",
+                    priority: "hot",
+                    dueDate: addDaysIso(del.requiredDate, -1),
+                    links: { deliveryId: id, sequenceId: del.sequenceId },
+                    autoKey: `delivery-crane:${id}`,
+                  }),
+                )
+              : s.tasks;
+          return {
+            deliveries: [del, ...s.deliveries],
+            tasks,
+            activities: pushActivity(
+              s,
+              makeActivity({
+                projectId: input.projectId,
+                kind: "delivery",
+                actor: actorName(s),
+                summary: `${loadNumber} planned`,
+                detail: del.requiredDate ? `Required on site ${del.requiredDate}` : undefined,
+                deliveryId: id,
+              }),
+            ),
+          };
+        });
+        return id;
+      },
+
+      updateDelivery: (id, patch) =>
+        set((s) => {
+          if (deny(s.crewRole, "delivery.manage")) return s;
+          return {
+            deliveries: s.deliveries.map((d) => (d.id === id ? { ...d, ...patch } : d)),
+          };
+        }),
+
+      setDeliveryStatus: (id, status, issue) =>
+        set((s) => {
+          if (deny(s.crewRole, "delivery.manage")) return s;
+          const del = s.deliveries.find((d) => d.id === id);
+          if (!del) return s;
+          const deliveries = s.deliveries.map((d) =>
+            d.id === id
+              ? {
+                  ...d,
+                  status,
+                  issue: issue ?? d.issue,
+                  deliveredDate:
+                    status === "delivered" || status === "received" || status === "exception"
+                      ? (d.deliveredDate ?? today())
+                      : d.deliveredDate,
+                  receivedDate:
+                    status === "received" ? (d.receivedDate ?? today()) : d.receivedDate,
+                }
+              : d,
+          );
+          // A short or damaged load is a fab problem — raise the replacement task
+          const tasks =
+            status === "exception"
+              ? upsertAutoTask(
+                  s.tasks,
+                  makeTask({
+                    projectId: del.projectId,
+                    title: `Resolve short / damage on ${del.loadNumber}`,
+                    notes: issue,
+                    category: "fabrication",
+                    priority: "hot",
+                    ballInCourt: "fabricator",
+                    dueDate: addDaysIso(today(), 1),
+                    links: { deliveryId: id, sequenceId: del.sequenceId },
+                    autoKey: `delivery-exception:${id}`,
+                  }),
+                )
+              : s.tasks;
+          return {
+            deliveries,
+            tasks,
+            activities: pushActivity(
+              s,
+              makeActivity({
+                projectId: del.projectId,
+                kind: "delivery",
+                actor: actorName(s),
+                summary: `${del.loadNumber} → ${status.replace(/_/g, " ")}`,
+                detail: issue,
+                deliveryId: id,
+              }),
+            ),
+          };
+        }),
+
+      receiveDelivery: (id, received, issue) =>
+        set((s) => {
+          if (deny(s.crewRole, "delivery.manage")) return s;
+          const del = s.deliveries.find((d) => d.id === id);
+          if (!del) return s;
+          const byMark = new Map(received.map((r) => [r.mark, r.received]));
+          const lines = del.lines.map((l) => ({
+            ...l,
+            received: byMark.has(l.mark) ? byMark.get(l.mark) : l.received,
+          }));
+          const short = lines.some((l) => (l.received ?? 0) < l.qty);
+          const status: DeliveryStatus = short ? "exception" : "received";
+          const tasks = short
+            ? upsertAutoTask(
+                s.tasks,
+                makeTask({
+                  projectId: del.projectId,
+                  title: `Resolve short / damage on ${del.loadNumber}`,
+                  notes:
+                    issue ??
+                    lines
+                      .filter((l) => (l.received ?? 0) < l.qty)
+                      .map((l) => `${l.mark}: ${l.received ?? 0} of ${l.qty}`)
+                      .join(", "),
+                  category: "fabrication",
+                  priority: "hot",
+                  ballInCourt: "fabricator",
+                  dueDate: addDaysIso(today(), 1),
+                  links: { deliveryId: id, sequenceId: del.sequenceId },
+                  autoKey: `delivery-exception:${id}`,
+                }),
+              )
+            : s.tasks;
+          return {
+            deliveries: s.deliveries.map((d) =>
+              d.id === id
+                ? {
+                    ...d,
+                    lines,
+                    status,
+                    issue: issue ?? d.issue,
+                    deliveredDate: d.deliveredDate ?? today(),
+                    receivedDate: today(),
+                  }
+                : d,
+            ),
+            tasks,
+            activities: pushActivity(
+              s,
+              makeActivity({
+                projectId: del.projectId,
+                kind: "delivery",
+                actor: actorName(s),
+                summary: short
+                  ? `${del.loadNumber} received SHORT`
+                  : `${del.loadNumber} received and verified`,
+                detail: issue,
+                deliveryId: id,
+              }),
+            ),
+          };
+        }),
+
+      deleteDelivery: (id) =>
+        set((s) => {
+          if (deny(s.crewRole, "delivery.manage")) return s;
+          return { deliveries: s.deliveries.filter((d) => d.id !== id) };
+        }),
+
+      /* ── PM tracker: work packages ─────────────────────────────────── */
+
+      addWorkPackage: (input) => {
+        if (deny(get().crewRole, "workpackage.manage")) return "";
+        const id = newId("wp");
+        const project = get().projects.find((p) => p.id === input.projectId);
+        const existing = get()
+          .workPackages.filter((w) => w.projectId === input.projectId)
+          .map((w) => w.code);
+        const prefix = `WP-${(project?.jobNumber ?? "JOB")
+          .replace(/[^A-Z0-9]/gi, "")
+          .slice(-4)
+          .toUpperCase()}`;
+        const code = input.code ?? nextSeqNumber(prefix, existing);
+        const wp: WorkPackage = {
+          id,
+          projectId: input.projectId,
+          code,
+          name: input.name.trim(),
+          type: input.type,
+          status: input.status ?? "not_started",
+          sequenceId: input.sequenceId,
+          area: input.area,
+          grids: input.grids,
+          owner: input.owner,
+          tonnage: input.tonnage,
+          pieceCount: input.pieceCount,
+          percentComplete: input.percentComplete ?? 0,
+          drawingSetIds: input.drawingSetIds ?? [],
+          releaseToFabDate: input.releaseToFabDate,
+          fabStartDate: input.fabStartDate,
+          fabDueDate: input.fabDueDate,
+          paintOutDate: input.paintOutDate,
+          paintBackDate: input.paintBackDate,
+          shipDate: input.shipDate,
+          onSiteDate: input.onSiteDate,
+          erectStartDate: input.erectStartDate,
+          erectEndDate: input.erectEndDate,
+          craneDays: input.craneDays,
+          crewSize: input.crewSize,
+          notes: input.notes,
+        };
+        set((s) => ({
+          workPackages: [wp, ...s.workPackages],
+          activities: pushActivity(
+            s,
+            makeActivity({
+              projectId: input.projectId,
+              kind: "workpackage",
+              actor: actorName(s),
+              summary: `${code} created — ${wp.name}`,
+              workPackageId: id,
+            }),
+          ),
+        }));
+        return id;
+      },
+
+      updateWorkPackage: (id, patch) =>
+        set((s) => {
+          if (deny(s.crewRole, "workpackage.manage")) return s;
+          return {
+            workPackages: s.workPackages.map((w) =>
+              w.id === id
+                ? {
+                    ...w,
+                    ...patch,
+                    fabCompleteDate:
+                      patch.status === "complete"
+                        ? (w.fabCompleteDate ?? today())
+                        : w.fabCompleteDate,
+                  }
+                : w,
+            ),
+          };
+        }),
+
+      deleteWorkPackage: (id) =>
+        set((s) => {
+          if (deny(s.crewRole, "workpackage.manage")) return s;
+          return { workPackages: s.workPackages.filter((w) => w.id !== id) };
+        }),
+
+      /* ── PM tracker: roadblocks ────────────────────────────────────── */
+
+      addRoadblock: (input) => {
+        if (deny(get().crewRole, "roadblock.manage")) return "";
+        const id = newId("rb");
+        const existing = get()
+          .roadblocks.filter((r) => r.projectId === input.projectId)
+          .map((r) => r.number);
+        const number = input.number ?? nextSeqNumber("RB", existing);
+        const rb: Roadblock = {
+          id,
+          projectId: input.projectId,
+          number,
+          title: input.title.trim(),
+          description: input.description,
+          category: input.category,
+          severity: input.severity,
+          status: input.status ?? "open",
+          raisedDate: today(),
+          raisedBy: input.raisedBy ?? get().sessionActor,
+          owner: input.owner,
+          ballInCourt: input.ballInCourt,
+          targetResolution: input.targetResolution,
+          scheduleImpactDays: input.scheduleImpactDays,
+          costImpact: input.costImpact,
+          mitigation: input.mitigation,
+          drawingIds: input.drawingIds ?? [],
+          sequenceIds: input.sequenceIds ?? [],
+          workPackageIds: input.workPackageIds ?? [],
+          rfiIds: input.rfiIds ?? [],
+          deliveryIds: input.deliveryIds ?? [],
+          notes: input.notes,
+        };
+        set((s) => ({
+          roadblocks: [rb, ...s.roadblocks],
+          // Every roadblock gets an owner and a chase task, or it just sits
+          tasks: upsertAutoTask(
+            s.tasks,
+            makeTask({
+              projectId: rb.projectId,
+              title: `Clear roadblock ${number} — ${rb.title}`,
+              category: "coordination",
+              priority: rb.severity === "critical" || rb.severity === "high" ? "hot" : "normal",
+              owner: rb.owner,
+              ballInCourt: rb.ballInCourt,
+              dueDate: rb.targetResolution ?? addDaysIso(today(), 2),
+              links: { roadblockId: id },
+              autoKey: `roadblock:${id}`,
+            }),
+          ),
+          activities: pushActivity(
+            s,
+            makeActivity({
+              projectId: input.projectId,
+              kind: "roadblock",
+              actor: actorName(s),
+              summary: `${number} raised — ${rb.title}`,
+              detail: input.description,
+              roadblockId: id,
+            }),
+          ),
+        }));
+        return id;
+      },
+
+      updateRoadblock: (id, patch) =>
+        set((s) => {
+          if (deny(s.crewRole, "roadblock.manage")) return s;
+          return {
+            roadblocks: s.roadblocks.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+          };
+        }),
+
+      resolveRoadblock: (id, resolution) =>
+        set((s) => {
+          if (deny(s.crewRole, "roadblock.manage")) return s;
+          const rb = s.roadblocks.find((r) => r.id === id);
+          if (!rb) return s;
+          return {
+            roadblocks: s.roadblocks.map((r) =>
+              r.id === id
+                ? {
+                    ...r,
+                    status: "resolved" as RoadblockStatus,
+                    resolvedDate: today(),
+                    resolution: resolution ?? r.resolution,
+                  }
+                : r,
+            ),
+            // Close out the chase task that came with the roadblock
+            tasks: s.tasks.map((t) =>
+              t.links.roadblockId === id && t.status !== "done"
+                ? { ...t, status: "done" as TaskStatus, completedAt: today() }
+                : t,
+            ),
+            activities: pushActivity(
+              s,
+              makeActivity({
+                projectId: rb.projectId,
+                kind: "roadblock",
+                actor: actorName(s),
+                summary: `${rb.number} resolved`,
+                detail: resolution,
+                roadblockId: id,
+              }),
+            ),
+          };
+        }),
+
+      deleteRoadblock: (id) =>
+        set((s) => {
+          if (deny(s.crewRole, "roadblock.manage")) return s;
+          return {
+            roadblocks: s.roadblocks.filter((r) => r.id !== id),
+            tasks: s.tasks.filter((t) => t.links.roadblockId !== id),
+          };
+        }),
+
       exportPackage: () => {
         const s = get();
         return {
@@ -1065,6 +1977,11 @@ createDrawing: (input) => {
           markups: s.markups,
           transmittals: s.transmittals,
           activities: s.activities,
+          tasks: s.tasks,
+          changeOrders: s.changeOrders,
+          deliveries: s.deliveries,
+          workPackages: s.workPackages,
+          roadblocks: s.roadblocks,
           selectedProjectId: s.selectedProjectId,
           orgName: s.orgName,
           orgRfiEmail: s.orgRfiEmail,
@@ -1085,13 +2002,15 @@ createDrawing: (input) => {
             markups: pkg.markups,
             transmittals: pkg.transmittals,
             activities: pkg.activities,
-            selectedProjectId:
-              pkg.selectedProjectId ?? pkg.projects[0]?.id ?? null,
+            tasks: pkg.tasks ?? [],
+            changeOrders: pkg.changeOrders ?? [],
+            deliveries: pkg.deliveries ?? [],
+            workPackages: pkg.workPackages ?? [],
+            roadblocks: pkg.roadblocks ?? [],
+            selectedProjectId: pkg.selectedProjectId ?? pkg.projects[0]?.id ?? null,
             sheetAssets: {},
             ...(pkg.orgName !== undefined ? { orgName: pkg.orgName } : {}),
-            ...(pkg.orgRfiEmail !== undefined
-              ? { orgRfiEmail: pkg.orgRfiEmail }
-              : {}),
+            ...(pkg.orgRfiEmail !== undefined ? { orgRfiEmail: pkg.orgRfiEmail } : {}),
             ...(pkg.crewRole !== undefined ? { crewRole: pkg.crewRole } : {}),
           });
           return;
@@ -1112,26 +2031,24 @@ createDrawing: (input) => {
             submittals: mergeById(s.submittals, pkg.submittals),
             markups: mergeById(s.markups, pkg.markups),
             transmittals: mergeById(s.transmittals, pkg.transmittals),
+            tasks: mergeById(s.tasks, pkg.tasks ?? []),
+            changeOrders: mergeById(s.changeOrders, pkg.changeOrders ?? []),
+            deliveries: mergeById(s.deliveries, pkg.deliveries ?? []),
+            workPackages: mergeById(s.workPackages, pkg.workPackages ?? []),
+            roadblocks: mergeById(s.roadblocks, pkg.roadblocks ?? []),
             activities: [...pkg.activities, ...s.activities].slice(0, 200),
-            selectedProjectId:
-              pkg.selectedProjectId ?? s.selectedProjectId,
+            selectedProjectId: pkg.selectedProjectId ?? s.selectedProjectId,
             ...(pkg.orgName !== undefined ? { orgName: pkg.orgName } : {}),
-            ...(pkg.orgRfiEmail !== undefined
-              ? { orgRfiEmail: pkg.orgRfiEmail }
-              : {}),
+            ...(pkg.orgRfiEmail !== undefined ? { orgRfiEmail: pkg.orgRfiEmail } : {}),
           };
         });
       },
-
 
       mergePieceMarks: (drawingId, marks) =>
         set((s) => ({
           drawings: s.drawings.map((d) => {
             if (d.id !== drawingId) return d;
-            const next = new Set([
-              ...d.pieceMarks,
-              ...marks.map((m) => m.trim()).filter(Boolean),
-            ]);
+            const next = new Set([...d.pieceMarks, ...marks.map((m) => m.trim()).filter(Boolean)]);
             return {
               ...d,
               pieceMarks: [...next].sort((a, b) =>
@@ -1143,11 +2060,8 @@ createDrawing: (input) => {
 
       createSequence: (input) => {
         if (deny(get().crewRole, "drawing.edit")) return "";
-        const existing = get().sequences.filter(
-          (x) => x.projectId === input.projectId,
-        );
-        const number =
-          existing.reduce((m, x) => Math.max(m, x.number), 0) + 1;
+        const existing = get().sequences.filter((x) => x.projectId === input.projectId);
+        const number = existing.reduce((m, x) => Math.max(m, x.number), 0) + 1;
         const id = newId("seq");
         const seq: Sequence = {
           id,
@@ -1178,8 +2092,7 @@ createDrawing: (input) => {
             const dwgNo = (e.drawingNumber || "").trim();
             if (!dwgNo) {
               const hit = drawings.find(
-                (d) =>
-                  d.projectId === projectId && d.pieceMarks.includes(mark),
+                (d) => d.projectId === projectId && d.pieceMarks.includes(mark),
               );
               if (hit) continue;
               let setId = drawingSets.find(
@@ -1202,8 +2115,7 @@ createDrawing: (input) => {
                 ];
               }
               let importDwg = drawings.find(
-                (d) =>
-                  d.projectId === projectId && d.number === "IMPORT-PIECES",
+                (d) => d.projectId === projectId && d.number === "IMPORT-PIECES",
               );
               if (!importDwg) {
                 importDwg = {
@@ -1227,25 +2139,19 @@ createDrawing: (input) => {
                 marksAdded += 1;
               } else if (!importDwg.pieceMarks.includes(mark)) {
                 drawings = drawings.map((d) =>
-                  d.id === importDwg!.id
-                    ? { ...d, pieceMarks: [...d.pieceMarks, mark] }
-                    : d,
+                  d.id === importDwg!.id ? { ...d, pieceMarks: [...d.pieceMarks, mark] } : d,
                 );
                 marksAdded += 1;
               }
               continue;
             }
             let d = drawings.find(
-              (x) =>
-                x.projectId === projectId &&
-                x.number.toLowerCase() === dwgNo.toLowerCase(),
+              (x) => x.projectId === projectId && x.number.toLowerCase() === dwgNo.toLowerCase(),
             );
             if (!d) {
               const code = e.setCode?.trim() || "SET-IMPORT";
               let setId = drawingSets.find(
-                (x) =>
-                  x.projectId === projectId &&
-                  x.code.toLowerCase() === code.toLowerCase(),
+                (x) => x.projectId === projectId && x.code.toLowerCase() === code.toLowerCase(),
               )?.id;
               if (!setId) {
                 setId = newId("set");
@@ -1277,17 +2183,14 @@ createDrawing: (input) => {
                 pages: 1,
                 pieceMarks: [mark],
                 tags: [],
-                sheetIndex:
-                  drawings.filter((x) => x.setId === setId).length + 1,
+                sheetIndex: drawings.filter((x) => x.setId === setId).length + 1,
               };
               drawings = [d, ...drawings];
               sheetsCreated += 1;
               marksAdded += 1;
             } else if (!d.pieceMarks.includes(mark)) {
               drawings = drawings.map((x) =>
-                x.id === d!.id
-                  ? { ...x, pieceMarks: [...x.pieceMarks, mark] }
-                  : x,
+                x.id === d!.id ? { ...x, pieceMarks: [...x.pieceMarks, mark] } : x,
               );
               marksAdded += 1;
             }
@@ -1319,9 +2222,7 @@ createDrawing: (input) => {
         }
         const nextProjects = s.projects.filter((p) => p.id !== projectId);
         const nextSelected =
-          s.selectedProjectId === projectId
-            ? (nextProjects[0]?.id ?? null)
-            : s.selectedProjectId;
+          s.selectedProjectId === projectId ? (nextProjects[0]?.id ?? null) : s.selectedProjectId;
         set({
           projects: nextProjects,
           sequences: s.sequences.filter((x) => x.projectId !== projectId),
@@ -1387,6 +2288,21 @@ createDrawing: (input) => {
     }),
     {
       name: "piecemark-drawings-v5",
+      // v1 adds the PM tracker collections. Stations that already hold real
+      // job data get empty lists rather than the demo seed.
+      version: 1,
+      migrate: (persisted) => {
+        const p = (persisted ?? {}) as Record<string, unknown>;
+        const arr = (k: string) => (Array.isArray(p[k]) ? p[k] : []);
+        return {
+          ...p,
+          tasks: arr("tasks"),
+          changeOrders: arr("changeOrders"),
+          deliveries: arr("deliveries"),
+          workPackages: arr("workPackages"),
+          roadblocks: arr("roadblocks"),
+        };
+      },
       // Tracking Prevention / private mode may block localStorage in the preview iframe.
       // Fall back to in-memory so the app still works (session-only when blocked).
       storage: createJSONStorage(() => {
@@ -1423,6 +2339,11 @@ createDrawing: (input) => {
         transmittals: s.transmittals,
         submittals: s.submittals,
         activities: s.activities,
+        tasks: s.tasks,
+        changeOrders: s.changeOrders,
+        deliveries: s.deliveries,
+        workPackages: s.workPackages,
+        roadblocks: s.roadblocks,
         selectedProjectId: s.selectedProjectId,
         filters: s.filters,
         titleBlockMaps: s.titleBlockMaps,
@@ -1467,9 +2388,7 @@ export function pieceMarkRows(projectId: string): PieceMarkRow[] {
       });
     }
   }
-  return rows.sort((a, b) =>
-    a.mark.localeCompare(b.mark, undefined, { numeric: true }),
-  );
+  return rows.sort((a, b) => a.mark.localeCompare(b.mark, undefined, { numeric: true }));
 }
 
 export function projectMetrics(projectId: string) {
@@ -1482,9 +2401,7 @@ export function projectMetrics(projectId: string) {
   const transmittals = state.transmittals.filter((t) => t.projectId === projectId);
 
   const total = drawings.length;
-  const fabReady = drawings.filter((d) =>
-    FAB_READY_STATUSES.includes(d.status),
-  ).length;
+  const fabReady = drawings.filter((d) => FAB_READY_STATUSES.includes(d.status)).length;
   const onHold = drawings.filter((d) => d.status === "on_hold").length;
   const revise = drawings.filter((d) => d.status === "revise_resubmit").length;
   const inReview = drawings.filter((d) =>
@@ -1499,23 +2416,15 @@ export function projectMetrics(projectId: string) {
   ).length;
   const setsOnHold = drawingSets.filter((s) => {
     const sheets = sheetsForSet(drawings, s.id);
-    return (
-      s.status === "on_hold" || sheets.some((d) => d.status === "on_hold")
-    );
+    return s.status === "on_hold" || sheets.some((d) => d.status === "on_hold");
   }).length;
   const pieceCount = drawings.reduce((n, d) => n + d.pieceMarks.length, 0);
   const openTransmittals = transmittals.filter((t) =>
     ["draft", "issued"].includes(t.status),
   ).length;
-  const fieldSheets = drawings.filter(
-    (d) => d.status === "issued_for_erection",
-  ).length;
-  const shopSheets = drawings.filter((d) =>
-    SHOP_QUEUE_STATUSES.includes(d.status),
-  ).length;
-  const activities = state.activities
-    .filter((a) => a.projectId === projectId)
-    .slice(0, 12);
+  const fieldSheets = drawings.filter((d) => d.status === "issued_for_erection").length;
+  const shopSheets = drawings.filter((d) => SHOP_QUEUE_STATUSES.includes(d.status)).length;
+  const activities = state.activities.filter((a) => a.projectId === projectId).slice(0, 12);
 
   return {
     total,
@@ -1543,10 +2452,7 @@ export function projectMetrics(projectId: string) {
   };
 }
 
-export function rolledSetStatus(
-  sheets: Drawing[],
-  setStatus: DrawingStatus,
-): DrawingStatus {
+export function rolledSetStatus(sheets: Drawing[], setStatus: DrawingStatus): DrawingStatus {
   if (sheets.length === 0) return setStatus;
   let worst: DrawingStatus = sheets[0]!.status;
   let score = STATUS_SEVERITY[worst] ?? 99;
@@ -1573,8 +2479,7 @@ export function filterDrawingSets(
       if (projectId && set.projectId !== projectId) return false;
       if (filters.setId !== "all" && set.id !== filters.setId) return false;
       if (filters.type !== "all" && set.type !== filters.type) return false;
-      if (filters.sequenceId !== "all" && set.sequenceId !== filters.sequenceId)
-        return false;
+      if (filters.sequenceId !== "all" && set.sequenceId !== filters.sequenceId) return false;
       const sheets = sheetsForSet(drawings, set.id);
       const effective = rolledSetStatus(sheets, set.status);
       if (filters.status !== "all" && effective !== filters.status && set.status !== filters.status)
@@ -1632,7 +2537,178 @@ export function buildPieceMarkIndex(
       });
     }
   }
-  return rows.sort((a, b) =>
-    a.mark.localeCompare(b.mark, undefined, { numeric: true }),
+  return rows.sort((a, b) => a.mark.localeCompare(b.mark, undefined, { numeric: true }));
+}
+
+/* ── PM tracker selectors ─────────────────────────────────────────────────── */
+
+export type TaskView = "today" | "week" | "overdue" | "open" | "waiting" | "done" | "all";
+
+export const TASK_VIEW_LABELS: Record<TaskView, string> = {
+  today: "Today",
+  week: "This Week",
+  overdue: "Overdue",
+  open: "All Open",
+  waiting: "Waiting On",
+  done: "Completed",
+  all: "Everything",
+};
+
+export interface TaskViewFilters {
+  view: TaskView;
+  projectId: string | "all";
+  category: TaskCategory | "all";
+  ballInCourt: BallInCourt | "all";
+  owner: string | "all";
+  query: string;
+}
+
+function daysOut(iso?: string | null): number | null {
+  if (!iso) return null;
+  const t = new Date(iso + (iso.length === 10 ? "T12:00:00" : ""));
+  if (Number.isNaN(t.getTime())) return null;
+  const now = new Date();
+  now.setHours(12, 0, 0, 0);
+  return Math.round((t.getTime() - now.getTime()) / 86400000);
+}
+
+/** True while a snoozed task should stay out of the active views. */
+export function isSnoozed(t: Task): boolean {
+  if (!t.snoozedUntil) return false;
+  const d = daysOut(t.snoozedUntil);
+  return d != null && d > 0;
+}
+
+export function filterTasks(tasks: Task[], f: TaskViewFilters): Task[] {
+  const q = f.query.trim().toLowerCase();
+  return tasks
+    .filter((t) => {
+      if (f.projectId !== "all" && t.projectId !== f.projectId) return false;
+      if (f.category !== "all" && t.category !== f.category) return false;
+      if (f.ballInCourt !== "all" && t.ballInCourt !== f.ballInCourt) return false;
+      if (f.owner !== "all" && (t.owner ?? "") !== f.owner) return false;
+      if (q) {
+        const hit =
+          t.title.toLowerCase().includes(q) ||
+          (t.notes ?? "").toLowerCase().includes(q) ||
+          (t.links.ref ?? "").toLowerCase().includes(q) ||
+          t.subtasks.some((st) => st.text.toLowerCase().includes(q));
+        if (!hit) return false;
+      }
+
+      const d = daysOut(t.dueDate);
+      switch (f.view) {
+        case "done":
+          return t.status === "done";
+        case "all":
+          return true;
+        case "overdue":
+          return t.status !== "done" && d != null && d < 0;
+        case "today":
+          if (t.status === "done" || isSnoozed(t)) return false;
+          return d != null && d <= 0;
+        case "week":
+          if (t.status === "done" || isSnoozed(t)) return false;
+          return d != null && d <= 7;
+        case "waiting":
+          return t.status !== "done" && t.ballInCourt != null && t.ballInCourt !== "internal";
+        case "open":
+        default:
+          return t.status !== "done" && !isSnoozed(t);
+      }
+    })
+    .sort((a, b) => {
+      if (a.status === "done" && b.status !== "done") return 1;
+      if (b.status === "done" && a.status !== "done") return -1;
+      const ad = daysOut(a.dueDate);
+      const bd = daysOut(b.dueDate);
+      if (ad == null && bd != null) return 1;
+      if (bd == null && ad != null) return -1;
+      if (ad != null && bd != null && ad !== bd) return ad - bd;
+      const rank = { hot: 0, normal: 1, low: 2 } as const;
+      return rank[a.priority] - rank[b.priority];
+    });
+}
+
+/** Days a task has been sitting open — the number that makes stale work visible. */
+export function taskAgeDays(t: Task): number {
+  const d = daysOut(t.createdAt);
+  return d == null ? 0 : Math.abs(d);
+}
+
+/** Portfolio roll-up across every job, or one job when scoped. */
+export function pmMetrics(projectId: string | "all") {
+  const s = useAppStore.getState();
+  const scope = <T extends { projectId: string }>(rows: T[]) =>
+    projectId === "all" ? rows : rows.filter((r) => r.projectId === projectId);
+
+  const tasks = scope(s.tasks);
+  const openTasks = tasks.filter((t) => t.status !== "done");
+  const overdueTasks = openTasks.filter((t) => {
+    const d = daysOut(t.dueDate);
+    return d != null && d < 0;
+  });
+  const dueToday = openTasks.filter((t) => daysOut(t.dueDate) === 0);
+  const waitingOn = openTasks.filter((t) => t.ballInCourt && t.ballInCourt !== "internal");
+
+  const roadblocks = scope(s.roadblocks).filter((r) => r.status !== "resolved");
+  const criticalRoadblocks = roadblocks.filter(
+    (r) => r.severity === "critical" || r.severity === "high",
   );
+
+  const deliveries = scope(s.deliveries);
+  const inboundDeliveries = deliveries.filter(
+    (d) => d.status !== "received" && d.status !== "exception",
+  );
+  const deliveryExceptions = deliveries.filter((d) => d.status === "exception");
+
+  const workPackages = scope(s.workPackages);
+  const activeFab = workPackages.filter(
+    (w) => w.type === "fabrication" && w.status === "in_progress",
+  );
+  const lateFab = workPackages.filter((w) => {
+    if (w.status === "complete") return false;
+    const d = daysOut(w.fabDueDate);
+    return d != null && d < 0;
+  });
+  const erectionPackages = workPackages.filter((w) => w.type === "erection");
+
+  const changeOrders = scope(s.changeOrders);
+  const pendingCos = changeOrders.filter(
+    (c) => c.status !== "approved" && c.status !== "void" && c.status !== "rejected",
+  );
+  const pendingCoValue = pendingCos.reduce((n, c) => n + (c.amount || 0), 0);
+  const approvedCoValue = changeOrders
+    .filter((c) => c.status === "approved")
+    .reduce((n, c) => n + (c.amount || 0), 0);
+
+  const rfis = scope(s.rfis).filter((r) => r.status === "open");
+  const submittals = scope(s.submittals).filter((x) =>
+    ["submitted", "under_review", "resubmit"].includes(x.status),
+  );
+
+  const erectedTons = erectionPackages.reduce(
+    (n, w) => n + ((w.tonnage ?? 0) * (w.erectedPct ?? 0)) / 100,
+    0,
+  );
+
+  return {
+    openTasks: openTasks.length,
+    overdueTasks: overdueTasks.length,
+    dueToday: dueToday.length,
+    waitingOn: waitingOn.length,
+    openRoadblocks: roadblocks.length,
+    criticalRoadblocks: criticalRoadblocks.length,
+    inboundDeliveries: inboundDeliveries.length,
+    deliveryExceptions: deliveryExceptions.length,
+    activeFabPackages: activeFab.length,
+    lateFabPackages: lateFab.length,
+    pendingCos: pendingCos.length,
+    pendingCoValue,
+    approvedCoValue,
+    openRfis: rfis.length,
+    openSubmittals: submittals.length,
+    erectedTons,
+    erectionPackages: erectionPackages.length,
+  };
 }
