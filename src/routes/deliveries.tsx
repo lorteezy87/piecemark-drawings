@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Download, Plus, Truck, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { BufferedInput, BufferedTextarea } from "@/components/buffered-field";
 import { AppShell } from "@/components/layout/app-shell";
 import { JobScopeSelect } from "@/components/job-scope";
 import { DeliveryStatusBadge } from "@/components/pm-badges";
@@ -515,14 +516,10 @@ function DeliveriesPage() {
                         <label className="mb-1 block text-[11px] text-[var(--color-muted)]">
                           Truck #
                         </label>
-                        <Input
+                        <BufferedInput
                           aria-label="Truck number"
                           value={d.truckNumber ?? ""}
-                          onChange={(e) =>
-                            updateDelivery(d.id, {
-                              truckNumber: e.target.value || undefined,
-                            })
-                          }
+                          onCommit={(v) => updateDelivery(d.id, { truckNumber: v || undefined })}
                         />
                       </div>
                     </div>
@@ -627,15 +624,11 @@ function DeliveriesPage() {
                       <label className="mb-1 block text-[11px] text-[var(--color-muted)]">
                         Notes
                       </label>
-                      <textarea
+                      <BufferedTextarea
+                        aria-label="Notes"
                         value={d.notes ?? ""}
-                        onChange={(e) =>
-                          updateDelivery(d.id, {
-                            notes: e.target.value || undefined,
-                          })
-                        }
+                        onCommit={(v) => updateDelivery(d.id, { notes: v || undefined })}
                         rows={2}
-                        className="w-full resize-y rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
                       />
                     </div>
                   </div>

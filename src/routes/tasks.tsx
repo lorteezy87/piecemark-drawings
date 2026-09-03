@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { BufferedInput, BufferedTextarea } from "@/components/buffered-field";
 import { AppShell } from "@/components/layout/app-shell";
 import { JobScopeSelect } from "@/components/job-scope";
 import {
@@ -558,14 +559,10 @@ function TasksPage() {
                               <label className="mb-1 block text-[11px] text-[var(--color-muted)]">
                                 Owner
                               </label>
-                              <Input
+                              <BufferedInput
                                 aria-label="Owner"
                                 value={t.owner ?? ""}
-                                onChange={(e) =>
-                                  updateTask(t.id, {
-                                    owner: e.target.value || undefined,
-                                  })
-                                }
+                                onCommit={(v) => updateTask(t.id, { owner: v || undefined })}
                                 placeholder="Who owns it"
                               />
                             </div>
@@ -618,16 +615,12 @@ function TasksPage() {
                             <label className="mb-1 block text-[11px] text-[var(--color-muted)]">
                               Notes
                             </label>
-                            <textarea
+                            <BufferedTextarea
+                              aria-label="Notes"
                               value={t.notes ?? ""}
-                              onChange={(e) =>
-                                updateTask(t.id, {
-                                  notes: e.target.value || undefined,
-                                })
-                              }
+                              onCommit={(v) => updateTask(t.id, { notes: v || undefined })}
                               rows={2}
                               placeholder="Detail the field or shop needs — sheet, detail, grid line…"
-                              className="w-full resize-y rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
                             />
                           </div>
 

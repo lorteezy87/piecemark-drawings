@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Download, Plus, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { BufferedTextarea } from "@/components/buffered-field";
 import { AppShell } from "@/components/layout/app-shell";
 import { JobScopeSelect } from "@/components/job-scope";
 import { WorkPackageStatusBadge, WorkPackageTypeBadge } from "@/components/pm-badges";
@@ -564,15 +565,11 @@ function WorkPackagesPage() {
                       <label className="mb-1 block text-[11px] text-[var(--color-muted)]">
                         Notes
                       </label>
-                      <textarea
+                      <BufferedTextarea
+                        aria-label="Notes"
                         value={w.notes ?? ""}
-                        onChange={(e) =>
-                          updateWorkPackage(w.id, {
-                            notes: e.target.value || undefined,
-                          })
-                        }
+                        onCommit={(v) => updateWorkPackage(w.id, { notes: v || undefined })}
                         rows={2}
-                        className="w-full resize-y rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
                       />
                     </div>
 

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Download, OctagonAlert, Plus, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { BufferedInput, BufferedTextarea } from "@/components/buffered-field";
 import { AppShell } from "@/components/layout/app-shell";
 import { JobScopeSelect } from "@/components/job-scope";
 import {
@@ -562,14 +563,10 @@ function RoadblocksPage() {
                         <label className="mb-1 block text-[11px] text-[var(--color-muted)]">
                           Owner
                         </label>
-                        <Input
+                        <BufferedInput
                           aria-label="Owner"
                           value={r.owner ?? ""}
-                          onChange={(e) =>
-                            updateRoadblock(r.id, {
-                              owner: e.target.value || undefined,
-                            })
-                          }
+                          onCommit={(v) => updateRoadblock(r.id, { owner: v || undefined })}
                         />
                       </div>
                     </div>
@@ -578,16 +575,12 @@ function RoadblocksPage() {
                       <label className="mb-1 block text-[11px] text-[var(--color-muted)]">
                         Mitigation plan
                       </label>
-                      <textarea
+                      <BufferedTextarea
+                        aria-label="Mitigation plan"
                         value={r.mitigation ?? ""}
-                        onChange={(e) =>
-                          updateRoadblock(r.id, {
-                            mitigation: e.target.value || undefined,
-                          })
-                        }
+                        onCommit={(v) => updateRoadblock(r.id, { mitigation: v || undefined })}
                         rows={2}
                         placeholder="What you are doing about it, and the fallback if it does not clear…"
-                        className="w-full resize-y rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
                       />
                     </div>
 

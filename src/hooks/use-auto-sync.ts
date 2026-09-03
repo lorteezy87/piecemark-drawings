@@ -26,6 +26,11 @@ export function useAutoSync() {
   const transmittals = useAppStore((s) => s.transmittals);
   const sequences = useAppStore((s) => s.sequences);
   const markups = useAppStore((s) => s.markups);
+  const tasks = useAppStore((s) => s.tasks);
+  const changeOrders = useAppStore((s) => s.changeOrders);
+  const deliveries = useAppStore((s) => s.deliveries);
+  const workPackages = useAppStore((s) => s.workPackages);
+  const roadblocks = useAppStore((s) => s.roadblocks);
   const selectedProjectId = useAppStore((s) => s.selectedProjectId);
   const skipFirst = useRef(true);
   const { user, isPending } = useCurrentUserState();
@@ -61,6 +66,11 @@ export function useAutoSync() {
     transmittals,
     sequences,
     markups,
+    tasks,
+    changeOrders,
+    deliveries,
+    workPackages,
+    roadblocks,
     selectedProjectId,
     exportPackage,
     crewRole,

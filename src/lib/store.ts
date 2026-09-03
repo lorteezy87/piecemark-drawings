@@ -1991,7 +1991,12 @@ export const useAppStore = create<AppState>()(
 
       importPackage: (pkg, mode = "replace") => {
         if (mode === "replace") {
-          set({
+          // A package written before v3 carries no PM tracker collections.
+          // Replacing with [] would silently wipe every task, delivery,
+          // change order, work package and roadblock on this station, so
+          // older packages leave those collections alone.
+          const carriesPmData = (pkg.version ?? 0) >= 3;
+          set((s) => ({
             projects: pkg.projects,
             sequences: pkg.sequences,
             drawingSets: pkg.drawingSets,
@@ -2002,17 +2007,17 @@ export const useAppStore = create<AppState>()(
             markups: pkg.markups,
             transmittals: pkg.transmittals,
             activities: pkg.activities,
-            tasks: pkg.tasks ?? [],
-            changeOrders: pkg.changeOrders ?? [],
-            deliveries: pkg.deliveries ?? [],
-            workPackages: pkg.workPackages ?? [],
-            roadblocks: pkg.roadblocks ?? [],
+            tasks: carriesPmData ? (pkg.tasks ?? []) : s.tasks,
+            changeOrders: carriesPmData ? (pkg.changeOrders ?? []) : s.changeOrders,
+            deliveries: carriesPmData ? (pkg.deliveries ?? []) : s.deliveries,
+            workPackages: carriesPmData ? (pkg.workPackages ?? []) : s.workPackages,
+            roadblocks: carriesPmData ? (pkg.roadblocks ?? []) : s.roadblocks,
             selectedProjectId: pkg.selectedProjectId ?? pkg.projects[0]?.id ?? null,
             sheetAssets: {},
             ...(pkg.orgName !== undefined ? { orgName: pkg.orgName } : {}),
             ...(pkg.orgRfiEmail !== undefined ? { orgRfiEmail: pkg.orgRfiEmail } : {}),
             ...(pkg.crewRole !== undefined ? { crewRole: pkg.crewRole } : {}),
-          });
+          }));
           return;
         }
         set((s) => {
