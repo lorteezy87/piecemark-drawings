@@ -14,7 +14,12 @@ export type Permission =
   | "submittal.manage"
   | "transmittal.issue"
   | "sync.push"
-  | "admin.settings";
+  | "admin.settings"
+  | "task.manage"
+  | "delivery.manage"
+  | "change_order.manage"
+  | "workpackage.manage"
+  | "roadblock.manage";
 
 const ALL: Permission[] = [
   "job.create",
@@ -30,6 +35,11 @@ const ALL: Permission[] = [
   "transmittal.issue",
   "sync.push",
   "admin.settings",
+  "task.manage",
+  "delivery.manage",
+  "change_order.manage",
+  "workpackage.manage",
+  "roadblock.manage",
 ];
 
 const ROLE_PERMS: Record<UserRole, Permission[]> = {
@@ -47,9 +57,30 @@ const ROLE_PERMS: Record<UserRole, Permission[]> = {
     "submittal.manage",
     "transmittal.issue",
     "sync.push",
+    "task.manage",
+    "delivery.manage",
+    "change_order.manage",
+    "workpackage.manage",
+    "roadblock.manage",
   ],
-  fab: ["drawing.upload", "status.change", "rfi.create", "sync.push"],
-  field: ["rfi.create", "drawing.upload", "sync.push"],
+  fab: [
+    "drawing.upload",
+    "status.change",
+    "rfi.create",
+    "sync.push",
+    "task.manage",
+    "delivery.manage",
+    "workpackage.manage",
+    "roadblock.manage",
+  ],
+  field: [
+    "rfi.create",
+    "drawing.upload",
+    "sync.push",
+    "task.manage",
+    "delivery.manage",
+    "roadblock.manage",
+  ],
   pm: [
     "job.create",
     "job.reset",
@@ -64,6 +95,11 @@ const ROLE_PERMS: Record<UserRole, Permission[]> = {
     "transmittal.issue",
     "sync.push",
     "admin.settings",
+    "task.manage",
+    "delivery.manage",
+    "change_order.manage",
+    "workpackage.manage",
+    "roadblock.manage",
   ],
   gc_view: [],
 };
@@ -94,6 +130,11 @@ export function permissionLabel(perm: Permission): string {
     "transmittal.issue": "issue transmittals",
     "sync.push": "push to cloud",
     "admin.settings": "admin settings",
+    "task.manage": "manage tasks",
+    "delivery.manage": "manage deliveries",
+    "change_order.manage": "manage change orders",
+    "workpackage.manage": "manage work packages",
+    "roadblock.manage": "manage roadblocks",
   };
   return map[perm] ?? perm;
 }
