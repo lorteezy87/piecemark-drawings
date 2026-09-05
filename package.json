@@ -1,7 +1,7 @@
 {
   "name": "piecemark-steel-drawings",
   "private": true,
-  "sideEffects": false,
+  "sideEffects": ["src/lib/map-upsert-polyfill.ts", "src/lib/pdf-worker.ts"],
   "type": "module",
   "overrides": {
     "nf3": "0.3.17"

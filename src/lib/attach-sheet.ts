@@ -62,6 +62,7 @@ export async function attachSheetsFromFiles(opts: {
       code: "SET-UPLOAD",
       name: "Uploaded sheets",
       type: "mixed",
+      via: "upload",
     });
   };
 
@@ -136,12 +137,14 @@ export async function attachSheetsFromFiles(opts: {
     const used = new Set(pool.map((d) => normalizeSheetNo(d.number)));
     const { number, title } = resolveNumberAndTitle(page, used);
     const setId = ensureUploadSet();
+    if (!setId) return "";
     const id = useAppStore.getState().createDrawing({
       projectId: opts.projectId,
       setId,
       number,
       title,
       type: "mixed",
+      via: "upload",
     });
     if (id && page.extractedRev) {
       const rev = page.extractedRev.trim();
