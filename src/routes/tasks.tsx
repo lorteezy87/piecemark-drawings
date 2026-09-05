@@ -451,7 +451,12 @@ function TasksPage() {
                         <button
                           type="button"
                           className="min-w-0 flex-1 text-left"
-                          onClick={() => setExpanded(isOpen ? null : t.id)}
+                          onClick={() => {
+                            // Drop any half-typed checklist text so it does not
+                            // reappear in the next task that gets opened.
+                            setSubtaskDraft("");
+                            setExpanded(isOpen ? null : t.id);
+                          }}
                         >
                           <div
                             className={cn(
