@@ -5,16 +5,45 @@ Domain-specific drawings management for **steel erection and fabrication subcont
 ## Run
 
 ```bash
-npm run dev      # 0.0.0.0:8080
+cp .env.example .env.local   # Supabase URL + publishable key (see below)
+npm run dev                  # 0.0.0.0:8080
 npm run build
 npm run typecheck
 ```
+
+## Backend: Supabase
+
+Auth, data, and files all live in one Supabase project — no app server in the
+data path. The browser talks to Supabase directly and Row Level Security scopes
+every table to the signed-in user.
+
+| Piece | Where |
+| --- | --- |
+| Sign-in | Supabase Auth (email + password, magic link) — `src/lib/auth/` |
+| Jobs, sheets, RFIs, submittals, transmittals, sequences, revisions, markups, activity, PM tracker | One table each (`supabase/migrations/0001_piecemark.sql`); full record in `data`, key fields lifted for indexing |
+| Uploaded sheet PDFs / images | Private Storage bucket `sheets` at `<user_id>/<drawing_id>/…`, cached in IndexedDB |
+| Station role + company profile | `user_settings` |
+| Title-block map | `title_block_maps` (one per job) |
+
+Persistence is write-through (`src/lib/supabase/persist.ts`): on sign-in the
+account's rows load into the store (an empty account is seeded from the device
+on first sign-in); after that every change is diffed and saved about a second
+later, row by row. Last write wins per row. Signed-out use is local-only.
+
+Env (both safe for the browser; RLS does the protecting):
+
+```
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+```
+
+`VITE_AUTH_ENABLED=false` runs the app without sign-in (local demo mode).
 
 ## Production pilot
 
 See **[PRODUCTION.md](./PRODUCTION.md)** for the go-live checklist, export/import, and multi-user roadmap.
 
-**Use now:** create jobs, drawing sets/sheets, RFIs, holds, shop/field packages, upload PDFs (IndexedDB), IFC viewer, export JSON backups.
+**Use now:** create jobs, drawing sets/sheets, RFIs, holds, shop/field packages, upload PDFs (cloud Storage + IndexedDB cache), IFC viewer, export JSON backups.
 
 ## PM tracker
 
@@ -44,7 +73,7 @@ not a second place to type things:
 Auto tasks are keyed to their source record, so the same RFI or hold never
 spawns a duplicate.
 
-**Next:** shared Postgres + object storage for multi-crew cloud sync.
+**Next:** shared company workspaces (today each account owns its own data).
 
 ## Handoff (IFC / viewers)
 

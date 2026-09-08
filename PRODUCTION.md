@@ -1,6 +1,6 @@
 # PieceMark — Production readiness
 
-## Ready for pilot use (this stack — not Hatchable)
+## Ready for pilot use (Supabase backend)
 
 | Capability | Status |
 |------------|--------|
@@ -8,42 +8,36 @@
 | Create jobs / sheets / sequences | Ready |
 | Export / import JSON package **v2** (org + role) | Ready |
 | PDF sheet upload + IndexedDB restore | Ready |
-| **Cloud workspace push/pull** | Ready — Settings & Sync |
-| **Conflict-safe push** + **multi-device conflict dialog** | Ready |
-| **Use cloud / Merge / Force keep mine** | Dialog when stations diverge |
-| **Auto-push** (2.5s debounce + mutex) | Ready |
-| **Auto-pull** + dirty/remote conflict UI | Ready |
-| **Chunked cloud files** (~28MB max, multi-part) | Ready |
-| Soft RBAC on mutations | Ready |
+| **Cloud persistence** (Supabase Postgres, per-row write-through) | Ready — Settings & cloud |
+| **Sign-in** (Supabase Auth: email/password, magic link) | Ready |
+| **Sheet files in Supabase Storage** (private bucket, 100 MB/file) | Ready |
+| **Row Level Security** on every table + bucket | Ready (server-enforced) |
+| Soft RBAC on mutations (station role) | Ready |
 | IFC WASM same-origin `/wasm/` | Ready |
 | Print field/shop/transmittal | Ready |
 | CSV piece import + IFC tags | Ready |
-| Migrations `0001`–`0004` | PGLite start / deploy migrate |
+| Schema | `supabase/migrations/0001_piecemark.sql` (applied to the project) |
 
 ## How to pilot (multi-device)
 
-1. Sign in on both stations with the **same account**  
-2. Work and let auto-push run (or Settings → Push)  
-3. If another station already pushed, the **conflict dialog** appears:  
-   - **Use cloud** — replace this station  
-   - **Merge both** — overlay by entity id, then push  
-   - **Keep mine** — force push over cloud  
-4. Large sheets (≤ ~28MB) upload in parts; bigger files stay local  
+1. Sign in on each station with the **same account**  
+2. Work — every change saves about a second later (Settings shows "saved hh:mm")  
+3. On another station, **Settings → Refresh from cloud** pulls the latest  
+4. First sign-in on a device with existing local jobs uploads them to the account  
 
-## Sync rules
+## Data rules
 
-- Stale push is **rejected** (dialog opens automatically).  
-- Force push only from the dialog or Settings.  
-- Cloud package is **per authenticated user**.  
-- Soft crew role is UI-only; server scopes by account id.  
+- Every row belongs to the signed-in account (RLS; enforced by Postgres, not the UI).  
+- Last write wins **per row**; there is no merge dialog.  
+- **Upload this device's data** (Settings) merges local rows into the cloud by id.  
+- Signed-out use is local-only; nothing leaves the browser.  
 
-## Still later (external services)
+## Still later
 
-- Company multi-tenant orgs  
-- S3/Blob for very large IFCs (100MB+)  
+- Company workspaces (share a job across accounts)  
 - Real outbound email for RFIs  
-- Server-enforced RBAC  
-- Real-time collab  
+- Real-time collab (Supabase Realtime on the same tables)  
+- IFC models in Storage (today: browser only)  
 
 ## Deploy
 
@@ -51,6 +45,17 @@
 npm run typecheck
 npm run build
 ```
+
+Set on the host (Vercel → Project → Environment Variables):
+
+```
+VITE_SUPABASE_URL
+VITE_SUPABASE_PUBLISHABLE_KEY
+```
+
+Remove the old `DATABASE_URL` / Grok auth variables — nothing reads them now.
+In Supabase → Authentication → URL Configuration, add the deployed origin to
+**Redirect URLs** so magic links and password resets land back in the app.
 
 Live: https://piecemark-steel-drawings.vercel.app  
 Repo: https://github.com/lorteezy87/piecemark-drawings  

@@ -59,6 +59,8 @@ import type {
   WorkPackageType,
 } from "@/lib/types";
 import { idbDeleteFile, idbPutFile, sheetAssetKey } from "@/lib/idb-files";
+import { authEnabled } from "@/lib/auth/client";
+import { deleteSheetFile } from "@/lib/sheet-files";
 import { newId } from "@/lib/ids";
 import type { JobPackage } from "@/lib/job-package";
 import type { TitleBlockMap } from "@/lib/title-block";
@@ -1022,6 +1024,7 @@ export const useAppStore = create<AppState>()(
 
       clearSheetAsset: (drawingId) => {
         void idbDeleteFile(sheetAssetKey(drawingId));
+        if (authEnabled) void deleteSheetFile(drawingId);
         set((s) => {
           const prev = s.sheetAssets[drawingId];
           if (prev?.url?.startsWith("blob:")) {

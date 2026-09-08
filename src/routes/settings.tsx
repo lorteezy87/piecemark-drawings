@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CloudDownload, CloudUpload, Loader2 } from "lucide-react";
+import { CloudDownload, CloudUpload, Download, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/app-shell";
@@ -12,17 +12,12 @@ import { parsePieceCsv } from "@/lib/import/csv-pieces";
 import { can, roleSummary } from "@/lib/permissions";
 import { USER_ROLE_LABELS, type UserRole } from "@/lib/types";
 import { useAppStore } from "@/lib/store";
-import { raiseSyncConflict } from "@/lib/sync-conflict-store";
+import { downloadJobPackage } from "@/lib/job-package";
 import {
-  getLocalRevision,
-  isAutoSyncEnabled,
-  isLocalDirty,
-  rememberAllRemoteSheets,
-  setAutoSyncEnabled,
-  setLocalRevision,
-  syncPull,
-  syncPush,
-} from "@/lib/workspace-sync";
+  pushAllLocal,
+  reloadFromCloud,
+  useCloudStatus,
+} from "@/lib/supabase/persist";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -36,72 +31,44 @@ function SettingsPage() {
   const orgRfiEmail = useAppStore((s) => s.orgRfiEmail);
   const setCrewRole = useAppStore((s) => s.setCrewRole);
   const setOrgProfile = useAppStore((s) => s.setOrgProfile);
-  const importPackage = useAppStore((s) => s.importPackage);
   const upsertDrawingMarks = useAppStore((s) => s.upsertDrawingMarks);
   const selectedProjectId = useAppStore((s) => s.selectedProjectId);
   const projects = useAppStore((s) => s.projects);
   const project =
     projects.find((p) => p.id === selectedProjectId) ?? projects[0];
 
-  const [busy, setBusy] = useState<"pull" | "push" | "force" | "csv" | null>(
-    null,
-  );
-  const [rev, setRev] = useState(() => getLocalRevision());
-  const [autoSync, setAutoSync] = useState(() => isAutoSyncEnabled());
+  const [busy, setBusy] = useState<"pull" | "push" | "csv" | null>(null);
+  const cloud = useCloudStatus();
+  const signedIn = authEnabled && !!user && !user.isDevFallback;
   const canPush = can(crewRole, "sync.push");
   const canAdmin = can(crewRole, "admin.settings");
   const canEdit = can(crewRole, "drawing.edit");
 
-  async function onPull(forceReplace = false) {
+  async function onPull() {
     setBusy("pull");
     try {
-      const res = await syncPull();
-      if (!res.package) {
-        toast.message("No cloud workspace yet — push this device first.");
+      const res = await reloadFromCloud();
+      if (res.empty) {
+        toast.message("Cloud is empty for this account — nothing to load.");
         return;
       }
-      if (isLocalDirty() && !forceReplace) {
-        raiseSyncConflict({
-          reason: "dirty_remote",
-          localRevision: getLocalRevision(),
-          remoteRevision: res.revision,
-          remoteUpdatedAt: res.updatedAt,
-          remotePackage: res.package,
-        });
-        return;
-      }
-      importPackage(res.package, "replace");
-      setLocalRevision(res.revision);
-      setRev(res.revision);
-      await rememberAllRemoteSheets();
       toast.success(
-        `Pulled ${res.package.projects.length} job(s), ${res.package.drawings.length} sheets (rev ${res.revision})`,
+        `Loaded ${res.pkg.projects.length} job(s), ${res.pkg.drawings.length} sheets from the cloud`,
       );
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "Pull failed — sign in if required",
-      );
+      toast.error(e instanceof Error ? e.message : "Refresh failed — sign in if required");
     } finally {
       setBusy(null);
     }
   }
 
-  async function onPush(force = false) {
-    setBusy(force ? "force" : "push");
+  async function onPush() {
+    setBusy("push");
     try {
-      const result = await syncPush(exportPackage(), {
-        force,
-        crewRole,
-        raiseUi: !force,
-      });
-      setRev(result.revision);
-      if (result.accepted) {
-        toast.success(`Pushed workspace revision ${result.revision}`);
-      }
+      await pushAllLocal();
+      toast.success("This device's jobs were merged into the cloud");
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "Push failed — sign in if required",
-      );
+      toast.error(e instanceof Error ? e.message : "Upload failed — sign in if required");
     } finally {
       setBusy(null);
     }
@@ -142,15 +109,15 @@ function SettingsPage() {
 
   return (
     <AppShell
-      title="Settings & sync"
-      subtitle="Cloud workspace, CSV import, production pilot tools"
+      title="Settings & cloud"
+      subtitle="Account, cloud data, CSV import, production pilot tools"
     >
       <div className="mx-auto max-w-2xl space-y-6">
         <section className="panel space-y-3 p-5">
           <h2 className="text-sm font-semibold">Company & crew role</h2>
           <p className="text-sm text-[var(--color-muted)]">
             Soft RBAC for this station. GC view is read-only for mutations.
-            Role is stored on this device (and in cloud package when you push).
+            Role and company profile save to your account when signed in.
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             <div>
@@ -222,94 +189,82 @@ function SettingsPage() {
         </section>
 
         <section className="panel space-y-3 p-5">
-          <h2 className="text-sm font-semibold">
-            Cloud workspace (PGLite / Postgres)
-          </h2>
+          <h2 className="text-sm font-semibold">Cloud (Supabase)</h2>
           <p className="text-sm text-[var(--color-muted)]">
-            Push stores the full job package server-side for your signed-in user
-            (or the preview dev user when auth is off). Stale pushes are rejected
-            — pull first, or use Force push only when you intend to overwrite
-            the cloud.
+            When you are signed in, every change saves to your account about a
+            second after you make it — jobs, sheets, RFIs, submittals,
+            transmittals, and uploaded PDFs. Sign in on another station and the
+            same data is there. Nothing is saved to the cloud while signed out.
           </p>
           <div className="text-xs text-[var(--color-subtle)]">
-            Local revision: <span className="font-mono-num">{rev}</span>
-            {" · "}
-            Dirty: {isLocalDirty() ? "yes" : "no"}
-            {" · "}
-            Auth: {authEnabled ? "on" : "off (dev user)"}
-            {" · "}
-            User:{" "}
+            Account:{" "}
             {isPending
               ? "…"
               : user
                 ? user.displayName || user.primaryEmail || user.id
                 : "signed out"}
+            {" · "}
+            Cloud:{" "}
+            {!authEnabled
+              ? "off (local demo mode)"
+              : cloud.state === "saving"
+                ? "saving…"
+                : cloud.state === "loading"
+                  ? "loading…"
+                  : cloud.state === "error"
+                    ? `error — ${cloud.error ?? "unknown"}`
+                    : cloud.state === "idle"
+                      ? cloud.lastSavedAt
+                        ? `saved ${new Date(cloud.lastSavedAt).toLocaleTimeString()}`
+                        : "up to date"
+                      : "not connected"}
           </div>
-          <label className="flex items-center gap-2 text-sm text-[var(--color-muted)]">
-            <input
-              id="auto-sync-toggle"
-              name="autoSync"
-              type="checkbox"
-              checked={autoSync}
-              disabled={!canPush}
-              aria-label="Enable auto-sync push"
-              className="size-4 accent-[var(--color-accent)]"
-              onChange={(e) => {
-                const on = e.target.checked;
-                setAutoSync(on);
-                setAutoSyncEnabled(on);
-                toast.message(
-                  on ? "Auto-sync on (debounced push)" : "Auto-sync off",
-                );
-              }}
-            />
-            Auto-push after changes (~2.5s debounce)
-          </label>
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
-              disabled={!!busy || !canPush}
-              onClick={() => void onPush(false)}
-            >
-              {busy === "push" ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <CloudUpload className="size-3.5" />
-              )}
-              Push to cloud
-            </Button>
-            <Button
-              size="sm"
               variant="outline"
-              disabled={!!busy}
-              onClick={() => void onPull(false)}
+              disabled={!!busy || !signedIn}
+              onClick={() => void onPull()}
             >
               {busy === "pull" ? (
                 <Loader2 className="size-3.5 animate-spin" />
               ) : (
                 <CloudDownload className="size-3.5" />
               )}
-              Pull from cloud
+              Refresh from cloud
             </Button>
             <Button
               size="sm"
               variant="outline"
-              disabled={!!busy || !canPush}
+              disabled={!!busy || !signedIn || !canPush}
               onClick={() => {
                 const ok = window.confirm(
-                  "Force push overwrites the cloud with this device even if cloud is newer. Continue?",
+                  "Merge every job on this device into the cloud by id? Rows with the same id are overwritten with this device's copy.",
                 );
-                if (ok) void onPush(true);
+                if (ok) void onPush();
               }}
             >
-              {busy === "force" ? (
+              {busy === "push" ? (
                 <Loader2 className="size-3.5 animate-spin" />
               ) : (
                 <CloudUpload className="size-3.5" />
               )}
-              Force push
+              Upload this device's data
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => downloadJobPackage(exportPackage())}
+            >
+              <Download className="size-3.5" />
+              Export JSON backup
             </Button>
           </div>
+          {!signedIn && authEnabled && (
+            <p className="text-xs text-[var(--color-warn)]">
+              You are not signed in — changes stay on this device only.
+            </p>
+          )}
         </section>
 
         <section className="panel space-y-3 p-5">
@@ -356,9 +311,9 @@ function SettingsPage() {
             Cloud file size
           </h2>
           <p>
-            Sheets upload to the cloud in multi-part chunks up to ~28MB. Larger
-            PDFs/IFCs stay on this device (IndexedDB) with metadata still
-            syncing in the job package.
+            Uploaded sheets (PDF / image) go to private cloud storage, up to
+            100 MB per file, and are cached on this device for instant opening.
+            IFC models stay on this device.
           </p>
         </section>
 
