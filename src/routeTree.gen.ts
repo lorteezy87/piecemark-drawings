@@ -36,7 +36,6 @@ import { Route as DrawingsIndexRouteImport } from './routes/drawings.index'
 import { Route as DrawingsDrawingIdRouteImport } from './routes/drawings.$drawingId'
 import { Route as PrintFieldRouteImport } from './routes/print.field'
 import { Route as PrintShopRouteImport } from './routes/print.shop'
-import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as DrawingsSetsSetIdRouteImport } from './routes/drawings.sets.$setId'
 import { Route as PrintTransmittalTrIdRouteImport } from './routes/print.transmittal.$trId'
 
@@ -175,11 +174,6 @@ const PrintShopRoute = PrintShopRouteImport.update({
   path: '/print/shop',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
-  id: '/api/auth/$',
-  path: '/api/auth/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DrawingsSetsSetIdRoute = DrawingsSetsSetIdRouteImport.update({
   id: '/sets/$setId',
   path: '/sets/$setId',
@@ -219,7 +213,6 @@ export interface FileRoutesByFullPath {
   '/print/field': typeof PrintFieldRoute
   '/print/shop': typeof PrintShopRoute
   '/drawings/': typeof DrawingsIndexRoute
-  '/api/auth/$': typeof ApiAuthSplatRoute
   '/drawings/sets/$setId': typeof DrawingsSetsSetIdRoute
   '/print/transmittal/$trId': typeof PrintTransmittalTrIdRoute
 }
@@ -250,7 +243,6 @@ export interface FileRoutesByTo {
   '/print/field': typeof PrintFieldRoute
   '/print/shop': typeof PrintShopRoute
   '/drawings': typeof DrawingsIndexRoute
-  '/api/auth/$': typeof ApiAuthSplatRoute
   '/drawings/sets/$setId': typeof DrawingsSetsSetIdRoute
   '/print/transmittal/$trId': typeof PrintTransmittalTrIdRoute
 }
@@ -283,7 +275,6 @@ export interface FileRoutesById {
   '/print/field': typeof PrintFieldRoute
   '/print/shop': typeof PrintShopRoute
   '/drawings/': typeof DrawingsIndexRoute
-  '/api/auth/$': typeof ApiAuthSplatRoute
   '/drawings/sets/$setId': typeof DrawingsSetsSetIdRoute
   '/print/transmittal/$trId': typeof PrintTransmittalTrIdRoute
 }
@@ -317,7 +308,6 @@ export interface FileRouteTypes {
     | '/print/field'
     | '/print/shop'
     | '/drawings/'
-    | '/api/auth/$'
     | '/drawings/sets/$setId'
     | '/print/transmittal/$trId'
   fileRoutesByTo: FileRoutesByTo
@@ -348,7 +338,6 @@ export interface FileRouteTypes {
     | '/print/field'
     | '/print/shop'
     | '/drawings'
-    | '/api/auth/$'
     | '/drawings/sets/$setId'
     | '/print/transmittal/$trId'
   id:
@@ -380,7 +369,6 @@ export interface FileRouteTypes {
     | '/print/field'
     | '/print/shop'
     | '/drawings/'
-    | '/api/auth/$'
     | '/drawings/sets/$setId'
     | '/print/transmittal/$trId'
   fileRoutesById: FileRoutesById
@@ -411,7 +399,6 @@ export interface RootRouteChildren {
   WorkPackagesRoute: typeof WorkPackagesRoute
   PrintFieldRoute: typeof PrintFieldRoute
   PrintShopRoute: typeof PrintShopRoute
-  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   PrintTransmittalTrIdRoute: typeof PrintTransmittalTrIdRoute
 }
 
@@ -606,13 +593,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrintShopRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/auth/$': {
-      id: '/api/auth/$'
-      path: '/api/auth/$'
-      fullPath: '/api/auth/$'
-      preLoaderRoute: typeof ApiAuthSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/drawings/sets/$setId': {
       id: '/drawings/sets/$setId'
       path: '/sets/$setId'
@@ -672,7 +652,6 @@ const rootRouteChildren: RootRouteChildren = {
   WorkPackagesRoute: WorkPackagesRoute,
   PrintFieldRoute: PrintFieldRoute,
   PrintShopRoute: PrintShopRoute,
-  ApiAuthSplatRoute: ApiAuthSplatRoute,
   PrintTransmittalTrIdRoute: PrintTransmittalTrIdRoute,
 }
 export const routeTree = rootRouteImport

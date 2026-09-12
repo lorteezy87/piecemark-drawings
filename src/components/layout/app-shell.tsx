@@ -25,13 +25,12 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAutoSync } from "@/hooks/use-auto-sync";
-import { SyncConflictDialog } from "@/components/sync/sync-conflict-dialog";
+import { useCloudPersist } from "@/hooks/use-cloud-persist";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { idbGetFile, idbPutFile, sheetAssetKey } from "@/lib/idb-files";
-import { downloadSheetFromServer } from "@/lib/workspace-sync";
+import { downloadSheetFile } from "@/lib/sheet-files";
 import { useAppStore } from "@/lib/store";
 import { authEnabled } from "@/lib/auth/client";
 import { UserButton } from "@/lib/auth/gates";
@@ -90,7 +89,7 @@ export function AppShell({
   actions?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  useAutoSync();
+  useCloudPersist();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const projects = useAppStore((s) => s.projects);
   const crewRole = useAppStore((s) => s.crewRole);
@@ -119,8 +118,8 @@ export function AppShell({
         let blob = await idbGetFile(sheetAssetKey(d.id));
         let name = d.sheetUploadName;
         let mime = d.sheetUploadMime || "application/pdf";
-        if (!blob) {
-          const remote = await downloadSheetFromServer(d.id);
+        if (!blob && authEnabled && user && !user.isDevFallback) {
+          const remote = await downloadSheetFile(d.id);
           if (remote) {
             blob = remote.blob;
             name = remote.name;
@@ -144,7 +143,7 @@ export function AppShell({
     return () => {
       cancelled = true;
     };
-  }, [drawings, sheetAssets, setSheetAsset]);
+  }, [drawings, sheetAssets, setSheetAsset, user]);
   const setFilters = useAppStore((s) => s.setFilters);
   const filters = useAppStore((s) => s.filters);
   const rfis = useAppStore((s) => s.rfis);
@@ -171,7 +170,6 @@ export function AppShell({
 
   return (
     <>
-      <SyncConflictDialog />
       <div className="min-h-dvh bg-[var(--color-bg)] text-[var(--color-fg)]">
         <div className="flex min-h-dvh">
           <aside className="hidden w-64 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-bg-elevated)] lg:flex">

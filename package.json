@@ -1,15 +1,17 @@
 {
   "name": "piecemark-steel-drawings",
   "private": true,
-  "sideEffects": ["src/lib/map-upsert-polyfill.ts", "src/lib/pdf-worker.ts"],
+  "sideEffects": [
+    "src/lib/map-upsert-polyfill.ts",
+    "src/lib/pdf-worker.ts"
+  ],
   "type": "module",
   "overrides": {
     "nf3": "0.3.17"
   },
   "scripts": {
     "dev": "vite dev --host 0.0.0.0 --port 8080",
-    "build": "vite build && npm run db:migrate",
-    "db:migrate": "node scripts/migrate.mjs",
+    "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview --host 0.0.0.0 --port 8080",
     "typecheck": "tsc --noEmit",
@@ -17,7 +19,6 @@
     "format": "prettier --write ."
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.3",
     "@hookform/resolvers": "^5.0.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -40,6 +41,8 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@supabase/ssr": "^0.12.6",
+    "@supabase/supabase-js": "^2.116.0",
     "@tailwindcss/vite": "^4.1.0",
     "@tanstack/react-query": "^5.90.0",
     "@tanstack/react-router": "^1.160.0",
@@ -47,17 +50,14 @@
     "@tanstack/react-table": "^8.21.0",
     "@tanstack/router-plugin": "^1.160.0",
     "@types/three": "^0.185.3",
-    "better-auth": "^1.4.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.0.0",
     "fflate": "^0.8.3",
-    "kysely": "^0.28.5",
     "lucide-react": "^0.510.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.2.108",
-    "pg": "^8.16.3",
     "react": "^19.1.0",
     "react-day-picker": "^9.14.0",
     "react-dom": "^19.1.0",
@@ -77,7 +77,6 @@
   "devDependencies": {
     "@eslint/js": "^9.20.0",
     "@types/node": "^22.16.5",
-    "@types/pg": "^8.11.10",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^5.0.0",

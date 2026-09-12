@@ -14,3 +14,7 @@ artifacts
 attachments/
 artifacts/
 *.token
+
+# local env (Supabase URL/key for this machine)
+.env.local
+.env.*.local

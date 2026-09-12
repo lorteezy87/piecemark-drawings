@@ -2,7 +2,7 @@
 
 **Product name (working):** PieceMark  
 **Domain:** Steel erection & fabrication drawings management for **subcontractors** (not generic PM)  
-**Stack:** React 19 · TypeScript · Vite · TanStack Start/Router · Tailwind v4 · Zustand · Three.js · web-ifc  
+**Stack:** React 19 · TypeScript · Vite · TanStack Start/Router · Tailwind v4 · Zustand · Supabase (Auth · Postgres · Storage) · Three.js · web-ifc  
 **Demo job seed:** SE-24-1187 Phoenix Medical Center Steel (Southwest Fabricators)
 
 This document is written so another agent can **port features into a different app** without rediscovering decisions, file maps, or gotchas.

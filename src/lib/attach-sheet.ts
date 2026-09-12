@@ -6,7 +6,8 @@ import {
 } from "@/lib/sheet-match";
 import { expandUploadFiles, type ExpandedPageFile } from "@/lib/pdf-split";
 import { useAppStore } from "@/lib/store";
-import { uploadSheetToServer } from "@/lib/workspace-sync";
+import { authEnabled } from "@/lib/auth/client";
+import { uploadSheetFile } from "@/lib/sheet-files";
 
 export type AttachResult = {
   attached: number;
@@ -226,15 +227,16 @@ export async function attachSheetsFromFiles(opts: {
       claimed.add(hit.id);
       drawingIds.push(hit.id);
 
-      try {
-        await uploadSheetToServer({
+      if (authEnabled) {
+        // Cloud copy is best-effort here; the sheet is already attached locally
+        // (IndexedDB) and Settings can re-upload if this fails.
+        const up = await uploadSheetFile({
           drawingId: hit.id,
+          blob: page.file,
           name: page.file.name,
           mime: asset.mime,
-          blob: page.file,
         });
-      } catch {
-        /* local only */
+        if (!up.ok) failed.push(`${page.file.name} (cloud copy: ${up.reason})`);
       }
 
       attached += 1;
